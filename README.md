@@ -1,6 +1,6 @@
 # RC-Car (Proposta de Maior Interesse)
-> uma plataforma com dois eixos
-> um eixo de direção
+> uma plataforma com dois eixos  
+> um eixo de direção  
 > uma app de telemovel que comunica com a plataforma
 ## especificações
 ### feedbacks para a app
@@ -18,8 +18,8 @@
 - feedbacks < 2s
 
 # Battle-Bot
-> uma plataforma com n-eixos
-> armas controladas
+> uma plataforma com n-eixos  
+> armas controladas  
 > uma app de telemovel que comunica com a plataforma
 ## especificações
 ### global
