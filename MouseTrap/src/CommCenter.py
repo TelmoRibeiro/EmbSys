@@ -6,6 +6,7 @@
     => User Agent
 '''
 
+from Message import message
 import socket
 import datetime
 import threading
@@ -30,9 +31,9 @@ def log(message):
     return print(f"@CC[{datetime.datetime.now()}]: {message}")
 
 def server():
+    messageID = 1
     # @telmo - errors not handled yet
     # @telmo - threading not handled yet
-    # @telmo - unpack bytes(message) 
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((CC_IPV4, CC_PORT))
     log("listening...")
@@ -40,11 +41,13 @@ def server():
     connection, address = server_socket.accept()
     log(f"connection established with {address}")
     while True:
-        data = connection.recv(1024)
-        if not data: return log(f"connection with {address} ended!")
-        log(f"received data = {data}")
-        log(f"sending data = {data}...")
-        connection.sendall(data)
+        data_recv = connection.recv(1024).decode("utf-8")
+        if not data_recv: return log(f"connection with {address} ended!")
+        log(f"received data = {data_recv}")
+        data_send = message(messageID,datetime.datetime.now(),"HelloWorld!")
+        log(f"sending data = {data_send}...")
+        connection.sendall(bytes(data_send, "utf-8"))
+        messageID += 1
     return
 
 def main():
