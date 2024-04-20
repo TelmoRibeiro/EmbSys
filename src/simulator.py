@@ -19,7 +19,7 @@ def client():
                 while True:
                     data_send = message(msg_ID,f"current msg_ID={msg_ID}")
                     data_encd = encode(data_send)
-                    log("CC",f"sending {data_send}...")
+                    log("SIM",f"sending {data_send}...")
                     client_socket.sendall(data_encd)
                     #############################################
                     data_recv = client_socket.recv(1024)
