@@ -3,7 +3,6 @@
 #   DM me :)                        #
 #####################################
 
-# @ telmo - not handling communication errors yet
 # @ telmo - threading not handled yet
 
 from utilities.message import message as message
@@ -35,36 +34,40 @@ def setup():
     return server_socket
 
 def server(server_socket):
-    log("CC",f"listening...")
     server_socket.listen()
-    connection, address = server_socket.accept()
-    log("CC",f"connection established with {address}")
-    while True:
-        data_recv = connection.recv(1024)
-        fail_safe(data_recv,address)
-        data_decd = decode(data_recv)
-        data_splt = data_decd.split("@")
-        msg_ID        = int(data_splt[0])
-        msg_content   = data_splt[1]
-        msg_timestamp = data_splt[2]
-        log("CC",f"received ID={msg_ID} | content={msg_content} | timestamp={msg_timestamp}")
-        #############################################
-        msg_ID += 1
-        data_send = message(msg_ID,f"current msg_ID={msg_ID}")
-        data_encd = encode(data_send)
-        log("CC",f"sending {data_send}...")
-        connection.sendall(data_encd)
-    raise RuntimeError("fatal error...")
-
-def fail_safe(data_recv,address):
-    if not data_recv:
-        log("CC",f"{address} stopped sending data!")
-        log("CC",f"setting up...")
-        return main()
-    return None
+    log("CC",f"listening...")
+    try:
+        while True:
+            client_socket, client_address = server_socket.accept()
+            log("CC",f"connection established with {client_address}")
+            try:
+                while True:
+                    data_recv = client_socket.recv(1024)
+                    if not data_recv:
+                        break
+                    data_decd = decode(data_recv)
+                    data_splt = data_decd.split("@")
+                    msg_ID        = int(data_splt[0])
+                    msg_content   = data_splt[1]
+                    msg_timestamp = data_splt[2]
+                    log("CC",f"received ID={msg_ID} | content={msg_content} | timestamp={msg_timestamp}")
+                    #############################################
+                    msg_ID += 1
+                    data_send = message(msg_ID,f"current msg_ID={msg_ID}")
+                    data_encd = encode(data_send)
+                    log("CC",f"sending {data_send}...")
+                    client_socket.sendall(data_encd)
+            except Exception as e:
+                log("CC",f"error: {e}")
+            finally:
+                client_socket.close()
+    except KeyboardInterrupt:
+        log("CC",f"shutting down...")
+    finally:
+        server_socket.close()
 
 def main():
     server_socket = setup()
-    return server(server_socket)
+    server(server_socket)
 
 if __name__ == "__main__": main()

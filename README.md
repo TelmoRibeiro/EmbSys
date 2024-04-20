@@ -1,6 +1,8 @@
 # Mouse Trap
-
-## Stucture
-
-### CommCenter.py
-Communication Center Agent
+## Project Structure:
+### report
+- PDFs regarding the project implementation
+### src
+- source code
+## Contacts
+telmo.ribeiro@fc.up.pt
