@@ -1,17 +1,12 @@
-import kivy
-from kivymd.app import MDApp
-from kivy.lang import Builder
-from kivy.uix.widget import Widget
-
-# @ telmo - testing...
 from utilities.message import message as message
 from utilities.log     import log     as log
 from utilities.codec   import encode,decode
 from utilities.network import CC_IPV4,CC_PORT
 import socket
 import threading
-
-kivy.require('1.9.0')
+from kivy.lang       import Builder
+# from kivy.uix.widget import Widget
+from kivymd.app      import MDApp
 
 def client():
     try:
@@ -45,23 +40,19 @@ def client():
             client_socket.close()
     except KeyboardInterrupt:
         log("Mobile-BE",f"shutting down...")
-# @ telmo - testing ended
 
-'''class MobileApp(MDApp):
+Builder.load_file("gui.kv")
+
+class MyWidget(BoxLayout):
+    def btn_press(self):
+        print("Button Pressed!")
+
+class MobileApp(MDApp):
     def build(self):
-        return kvfile
-        self.theme_cls.theme_style = "Dark"
-        self.root_widget = Builder.load_file(".gui.kv")
-        return self.root_widget
-        '''
-def screen():
-    class MobileApp(MDApp):
-        def build(self):
-            kvfile = Builder.load_file('gui.kv')
-            return kvfile
-        
-    MobileApp().run()
+        return MyWidget()
 
+def screen():        
+    MobileApp().run()
 
 def main():
     log("Mobile",f"booting...")
