@@ -48,8 +48,8 @@ def server(server_socket):
                     data_decd = decode(data_recv)
                     data_splt = data_decd.split("@")
                     msg_ID        = int(data_splt[0])
-                    msg_content   = data_splt[1]
-                    msg_timestamp = data_splt[2]
+                    msg_timestamp = data_splt[1]
+                    msg_content   = data_splt[2]
                     log("CC",f"received ID={msg_ID} | content={msg_content} | timestamp={msg_timestamp}")
                     #############################################
                     msg_ID += 1
