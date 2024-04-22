@@ -6,15 +6,12 @@
 # @ telmo - threading not handled yet
 
 from utilities.message import message as message
-from utilities.codec   import encode
-from utilities.codec   import decode
 from utilities.log     import log     as log
+from utilities.codec   import encode,decode
+from utilities.network import CC_IPV4,CC_PORT
 import socket
 import threading
 
-# NETWORKING:
-CC_IPV4 = "127.0.0.1"
-CC_PORT = 2500
 # REQUESTS:
 OPEN_R  = False
 CLOSE_R = False 
