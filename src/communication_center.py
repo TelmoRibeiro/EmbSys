@@ -24,6 +24,12 @@ SENSOR_E = False
 PHOTO_C = None
 
 
+'''
+[...]
+if 
+'''
+
+
 def setup():
     server_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
     server_socket.bind((CC_IPV4,CC_PORT))
@@ -48,9 +54,38 @@ def server(server_socket):
                     msg_content   = data_splt[2]
                     log("CC-SERVER",f"received ID={msg_ID} | content={msg_content} | timestamp={msg_timestamp}")
                     ####################
-                    msg_ID += 1
+                    if msg_content == "OPEN_R":
+                        log("CC-SERVER",f"handing control to {msg_content} thread...")
+                        open_r_thread = threading.Thread(target=open_r_control)
+                        open_r_thread.start()
+                    elif msg_content == "CLOSE_R":
+                        log("CC-SERVER",f"handing control to {msg_content} thread...")
+                        close_r_thread = threading.Thread(target=close_r_control)
+                        close_r_thread.start()
+                    elif msg_content == "PHOTO_R":
+                        log("CC-SERVER",f"handing control to {msg_content} thread...")
+                        photo_r_thread = threading.Thread(target=photo_r_control)
+                        photo_r_thread.start()
+                    elif msg_content == "OPEN_E":
+                        log("CC-SERVER",f"handing control to {msg_content} thread...")
+                        open_e_thread = threading.Thread(target=open_e_control)
+                        open_e_thread.start()
+                    elif msg_content == "CLOSE_E":
+                        log("CC-SERVER",f"handing control to {msg_content} thread...")
+                        close_e_thread = threading.Thread(target=close_e_control)
+                        close_e_thread.start()
+                    elif msg_content == "PHOTO_E":
+                        log("CC-SERVER",f"handing control to {msg_content} thread...")
+                        photo_e_thread = threading.Thread(target=photo_e_control)
+                        photo_e_thread.start()
+                    elif msg_content == "SENSOR_E":
+                        log("CC-SERVER",f"handing control to {msg_content} thread...")
+                        sensor_e_thread = threading.Thread(target=sensor_e_control)
+                        sensor_e_thread.start()
+                    else:
+                        raise RuntimeError("oops unexpected content!")
                     ####################
-                    data_send = message(msg_ID,f"current msg_ID={msg_ID}")
+                    data_send = message(msg_ID,f"{msg_content}")    
                     data_encd = encode(data_send)
                     log("CC-SERVER",f"sending {data_send}...")
                     client_socket.sendall(data_encd)
@@ -62,6 +97,27 @@ def server(server_socket):
         log("CC-SERVER",f"shutting down...")
     finally:
         server_socket.close()
+
+def open_r_control():
+    log("CC-OPENR",f"opening gates!")
+
+def close_r_control():
+    log("CC-CLOSER",f"closing gates!")
+
+def photo_r_control():
+    log("CC-PHOTOR",f"asking for photo!")
+
+def open_e_control():
+    log("CC-OPENE",f"door was opened!")
+
+def close_e_control():
+    log("CC-CLOSEE",f"door was closed!")
+
+def photo_e_control():
+    log("CC-PHOTOE",f"photo attached!")
+
+def sensor_e_control():
+    log("CC-SENSORE",f"something in the box!")
 
 def main():
     server_socket = setup()
