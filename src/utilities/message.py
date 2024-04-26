@@ -1,27 +1,24 @@
-import sys
 import datetime
 
-def main():
-    args_num = len(sys.argv)
-    if args_num == 2:
-        msg_ID      = sys.argv[0]
-        msg_content = sys.argv[1]
-        return message(msg_ID,msg_content)
-    if args_num == 3:
-        msg_ID        = sys.argv[0]
-        msg_content   = sys.argv[1]
-        msg_timestamp = sys.argv[2]
-        return message(msg_ID,msg_content,msg_timestamp)
-    raise RuntimeError(f"args_num={args_num} not supported")
-
-def message(ID,content,timestamp=datetime.datetime.now()):
+def message_packet(ID,content,timestamp=datetime.datetime.now()):
     return f"{ID}@{timestamp}@{content}@"
 
-def message_unpack(msg_data):
-    msg_splt = msg_data.split("@")
-    msg_ID        = int(msg_splt[0])
-    msg_timestamp = msg_splt[1]
-    msg_content   = msg_splt[2]
-    return msg_ID,msg_timestamp,msg_content
+def message_unpack(msg_packet):
+    msg_splt = msg_packet.split("@")
+    return int(msg_splt[0]),msg_splt[1],msg_splt[2]
 
-if __name__ == "__main__": main()
+def encode(msg_packet,format="utf-8"):
+    return bytes(msg_packet,format)
+
+def decode(msg_packet,format="utf-8"):
+    return msg_packet.decode(format)
+
+def encode_packet(ID,content,timestamp=datetime.datetime.now()):
+    data_send = message_packet(ID,content,timestamp)
+    data_encd = encode(data_send)
+    return data_send,data_encd
+
+def decode_packet(data_recv):
+    data_decd = decode(data_recv)
+    ID,timestamp,content = message_unpack(data_decd)
+    return ID,timestamp,content

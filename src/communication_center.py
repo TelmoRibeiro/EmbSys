@@ -1,169 +1,132 @@
-#####################################
-#   Any bugs? Any Improvements?     #
-#   DM me :)                        #
-#####################################
-
-from utilities.network import CC_IPV4,MTC_PORT,MC_PORT,MB_PORT
-from utilities.codec   import encode,decode
-from utilities.log     import log
-from utilities.message import message,message_unpack
+import utilities.network   as network
+from utilities.message import encode_packet,decode_packet
+from utilities.log     import log_cnsl
+from time              import sleep
 import socket
 import threading
 
-# SOCKETS:
-MTC_SOCKET = None
-MC_SOCKET  = None
-MB_SOCKET  = None
+'''
+    ATTENTION:
+        - I AM AWARE THERE ARE SOME COMMUNICATION BUGS
+        - WHEN CONNECTION FAILS WITH SOMEONE ALL THE CONNECTIONS SHOULD BE DROPED
+            - AND TRIED AGAIN
+        - IF YOU HAVE FEEDBACK IN WAYS I CAN IMRPOVE THE CODE OR
+        - IF YOU KNOW OF ANY BUGS
+        === HIT ME ON DMs ===
+    Telmo Ribeiro
+'''
 
 # EVENTS:
-MTC_EVENT = threading.Event()
-MC_EVENT  = threading.Event()
-MB_EVENT  = threading.Event()
+MOUSET_EVENT = threading.Event() # used to notify the mouse-trap socket is known
+MULTIM_EVENT = threading.Event() # used to notify the multimedia socket is known
+MOBILE_EVENT = threading.Event() # used to notify the mobile     socket is known
+SENSOR_EVENT = threading.Event() # used to notify the sensor processing function
 
-# @ telmo - real thread handover | no log polution?
-
-def service_port(service):
+# blocks communication until every service is live #
+# service <=> socket mapping #
+def stop(service,client_socket):
     match service:
-        case "MOBILE-SRVR":
-            return MB_PORT
-        case "MULTIM-SRVR":
-            return MC_PORT
-        case "MOUSET-SRVR":
-            return MTC_PORT
+        case MOBILE_SERVICE if MOBILE_SERVICE == network.MOBILE_SERVER:
+            global MOBILE_SOCKET
+            MOBILE_SOCKET = client_socket
+            MOBILE_EVENT.set()
+            while (not MOUSET_EVENT.is_set()) or (not MULTIM_EVENT.is_set()):
+                continue
+        case MULTIM_SERVICE if MULTIM_SERVICE == network.MULTIM_SERVER:
+            global MULTIM_SOCKET
+            MULTIM_SOCKET = client_socket
+            MULTIM_EVENT.set()
+            while (not MOUSET_EVENT.is_set()) or (not MOBILE_EVENT.is_set()):
+                continue
+        case MOUSET_SERVICE if MOUSET_SERVICE == network.MOUSET_SERVER:
+            global MOUSET_SOCKET
+            MOUSET_SOCKET = client_socket
+            MOUSET_EVENT.set()
+            while (not MULTIM_EVENT.is_set()) or (not MOBILE_EVENT.is_set()):
+                continue
         case _: raise RuntimeError(f"service={service} not supported!")
 
-def hold_connections(service,client_socket):
-    match service:
-        case "MOBILE-SRVR":
-            global MB_SOCKET
-            MB_SOCKET = client_socket
-            MB_EVENT.set()
-            while (not MTC_EVENT.is_set()) or (not MC_EVENT.is_set()):
-                continue
-        case "MULTIM-SRVR":
-            global MC_SOCKET
-            MC_SOCKET = client_socket
-            MC_EVENT.set()
-            while (not MB_EVENT.is_set()) or (not MTC_EVENT.is_set()):
-                continue
-        case "MOUSET-SRVR":
-            global MTC_SOCKET
-            MTC_SOCKET = client_socket
-            MTC_EVENT.set()
-            while (not MB_EVENT.is_set()) or (not MC_EVENT.is_set()):
-                    continue
-        case _: raise RuntimeError(f"service={service} not supported!")
-
-def resume_connections(service,client_socket):
-    data_send = message(0,"SYNC")
-    data_encd = encode(data_send)
-    log(f"{service}",f"sending {data_send}...")
+# resumes communications after every service is live #
+def play(service,client_socket):
+    #MOBILE_EVENT.clear()
+    #MULTIM_EVENT.clear()
+    #MOUSET_EVENT.clear()
+    ##########
+    _,data_encd = encode_packet(0,"SYNC")
+    log_cnsl(service,"sending SYNC...")
     client_socket.sendall(data_encd)
-    data_recv = client_socket.recv(1024)
-    data_decd = decode(data_recv)
-    msg_ID,msg_timestamp,msg_content = message_unpack(data_decd)
-    log(f"{service}",f"received: {msg_ID} | {msg_timestamp} | {msg_content}")
-    if msg_ID != 0 or msg_content != "SYNC_ACK":
-        raise RuntimeError(f"SYNC failed!")
+    ##########
+    _,_,msg_content = decode_packet(client_socket.recv(1024))
+    log_cnsl(service,"received SYNC_ACK!")
+    if msg_content != "SYNC_ACK":
+        raise RuntimeError(f"SYNC_ACK expected yet {msg_content} received")
 
 def server(service):
-    SERVICE_PORT = service_port(service)
-    # TCP CONNECTION #
-    server_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-    server_socket.bind((CC_IPV4,SERVICE_PORT))
+    server_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM) # tcp connection
+    SERVICE_IPV4  = network.SERVER_IPV4 
+    SERVICE_PORT  = network.service_port(service)
+    server_socket.bind((SERVICE_IPV4,SERVICE_PORT))
     server_socket.listen()
-    log(f"{service}",f"listening...")
+    log_cnsl(service,"listening...")
     try:
         while True:
             client_socket,client_address = server_socket.accept()
-            log(f"{service}",f"connection established with {client_address}")
-            hold_connections(service,client_socket)
+            log_cnsl(service,f"connection established with {client_address}!")
+            stop(service,client_socket) # wait until all services are online
             try:
-                resume_connections(service,client_socket)
+                play(service,client_socket) # unjams communication
                 while True:
                     data_recv = client_socket.recv(1024)
                     if not data_recv:
                         break
-                    data_decd = decode(data_recv)
-                    msg_ID,msg_timestamp,msg_content = message_unpack(data_decd)
-                    log(f"{service}",f"received: {msg_ID} | {msg_timestamp} | {msg_content}")
-                    ####################
-                    match msg_content:
-                        case "OPEN_R":
-                            log(f"{service}",f"handing control to {msg_content} thread...")
-                            open_r_thread = threading.Thread(target=open_r_control)
-                            open_r_thread.start()
-                        case "CLOSE_R":
-                            log(f"{service}",f"handing control to {msg_content} thread...")
-                            close_r_thread = threading.Thread(target=close_r_control)
-                            close_r_thread.start()
-                        case "PHOTO_R":
-                            log(f"{service}",f"handing control to {msg_content} thread...")
-                            photo_r_thread = threading.Thread(target=photo_r_control)
-                            photo_r_thread.start()
-                        case "OPEN_E":
-                            log(f"{service}",f"handing control to {msg_content} thread...")
-                            open_e_thread = threading.Thread(target=open_e_control)
-                            open_e_thread.start()
-                        case "CLOSE_E":
-                            log(f"{service}",f"handing control to {msg_content} thread...")
-                            close_e_thread = threading.Thread(target=close_e_control)
-                            close_e_thread.start()
-                        case "PHOTO_E":
-                            log(f"{service}",f"handing control to {msg_content} thread...")
-                            photo_e_thread = threading.Thread(target=photo_e_control)
-                            photo_e_thread.start()
-                        case "SENSOR_E":
-                            log(f"{service}",f"handing control to {msg_content} thread...")
-                            sensor_e_thread = threading.Thread(target=photo_r_control)
-                            sensor_e_thread.start()            
-                        case _: raise RuntimeError(f"{msg_content} not supported")
-                    ####################
-                    data_send = message(msg_ID,f"{msg_content}")    
-                    data_encd = encode(data_send)
-                    log(f"{service}",f"sending {data_send}...")
-                    client_socket.sendall(data_encd)
+                    msg_ID,msg_timestamp,msg_content = decode_packet(data_recv)
+                    log_cnsl(service,f"received {msg_content}!")
+                    message_control_thread = threading.Thread(target=message_control,args=(service,msg_ID,msg_timestamp,msg_content,))
+                    message_control_thread.start()
             except Exception as e:
-                log(f"{service}",f"error: {e}")
+                log_cnsl(service,f"catched: {e}")
             finally:
                 client_socket.close()
     except KeyboardInterrupt:
-        log(f"{service}",f"shutting down...")
+        log_cnsl(service,"shutting down...")
     finally:
         server_socket.close()      
 
-def open_r_control():
-    log("OPEN_R",f"forwarding...")
-    # send it to MTC
-
-def close_r_control():
-    log("CLOSE_R",f"forwarding...")
-    # send it to MTC
-
-def photo_r_control():
-    log("PHOTO_R",f"forwarding...")
-    # send it to MTC
-
-def photo_e_control():
-    log("PHOTO_E",f"forwarding...")
-    # send it to mobile + content
-
-def open_e_control():
-    log("OPEN_E",f"forwarding...")
-    # send it to mobile
-
-def close_e_control():
-    log("CLOSE_E",f"forwarding...")
-    # send it to mobile
-
-def sensor_e_control():
-    log("SENSOR_E",f"forwarding...")
-    # big brain moment
+def message_control(service,msg_ID,msg_timestamp,msg_content):
+    # @ telmo - not testing for msg_src...
+    match msg_content:
+        case FLAG if FLAG in ["OPEN_R","CLOSE_R","PHOTO_R"]:
+            client_socket = MOUSET_SOCKET
+            if SENSOR_EVENT.is_set() and FLAG != "PHOTO_R":
+                SENSOR_EVENT.clear()
+            _,data_encd = encode_packet(msg_ID,msg_timestamp,msg_content)
+            log_cnsl(service,f"sending {msg_content}...")
+            client_socket.sendall(data_encd)
+        case FLAG if FLAG in ["OPEN_E","CLOSE_R","PHOTO_E"]:
+            client_socket = MOBILE_SOCKET
+            _,data_encd = encode_packet(msg_ID,msg_timestamp,msg_content)
+            log_cnsl(service,f"sending {msg_content}...")
+            client_socket.sendall(data_encd)
+        case FLAG if FLAG in ["SENSOR_E"]:
+            client_socket = MOBILE_SOCKET
+            _,data_encd = encode_packet(msg_ID,msg_timestamp,msg_content)
+            log_cnsl(service,f"sending {msg_content}...")
+            client_socket.sendall(data_encd)
+            SENSOR_EVENT.set()
+            sleep(5)
+            # @ telmo - what shall happen if SENSOR_E arrives while SENSOR_E is processed?
+            if SENSOR_EVENT.is_set():
+                client_socket = MOUSET_SOCKET
+                _,data_encd = encode_packet(msg_ID,"CLOSE_R")
+                log_cnsl(service,f"sending CLOSE_R...")
+                client_socket.sendall(data_encd)
+            SENSOR_EVENT.clear()
+        case _: RuntimeError(f"service={msg_content} not supported!")
 
 def main():
-    mobile_thread = threading.Thread(target=server,args=("MOBILE-SRVR",))
-    multim_thread = threading.Thread(target=server,args=("MULTIM-SRVR",))
-    mouset_thread = threading.Thread(target=server,args=("MOUSET-SRVR",))
+    mobile_thread = threading.Thread(target=server,args=(network.MOBILE_SERVER,))
+    multim_thread = threading.Thread(target=server,args=(network.MULTIM_SERVER,))
+    mouset_thread = threading.Thread(target=server,args=(network.MOUSET_SERVER,))
     mobile_thread.start()
     multim_thread.start()
     mouset_thread.start()
