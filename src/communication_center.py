@@ -20,10 +20,7 @@ MTC_EVENT = threading.Event()
 MC_EVENT  = threading.Event()
 MB_EVENT  = threading.Event()
 
-''' TO DO:
-    - real thread handover
-    - no log polution?
-'''
+# @ telmo - real thread handover | no log polution?
 
 def service_port(service):
     match service:
@@ -34,7 +31,6 @@ def service_port(service):
         case "MOUSET-SRVR":
             return MTC_PORT
         case _: raise RuntimeError(f"service={service} not supported!")
-
 
 def hold_connections(service,client_socket):
     match service:

@@ -7,10 +7,7 @@ from time              import sleep
 import socket
 import threading
 
-''' TO DO:
-    - new thread for receiving hand
-    - no log polution?
-'''
+# @ telmo - no log polution?
 
 def service_port(service):
     match service:
@@ -34,6 +31,23 @@ def resume_connection(service,client_socket):
     log(f"{service}",f"sending {data_send}...")
     client_socket.sendall(data_encd)
 
+def send(service,client_socket,msg_ID,data_flag):
+    # @ telmo - you do not want it to overwrite your data_flag
+    # @ telmo - this is only for simulation purpose
+    data_flag = ["OPEN_R","CLOSE_R","PHOTO_R","OPEN_E","CLOSE_E","PHOTO_E","SENSOR_E"]
+    data_cont = data_flag[randint(0,len(data_flag)-1)]
+    # @ telmo - you start from here!
+    data_send = message(msg_ID,data_cont)
+    data_encd = encode(data_send)
+    log(f"{service}",f"sending {data_send}...")
+    client_socket.sendall(data_encd)
+
+def recv(service,msg_ID,msg_timestamp,msg_content):
+    # @ telmo - function dealing with what you receive
+    # @ telmo - for simulation purpose I will just log it
+    # @ telmo - you may pattern match the content through the cases you are expecting
+    log(f"{service}",f"received: {msg_ID} | {msg_timestamp} | {msg_content}")
+
 def client(service):
     SERVICE_PORT  = service_port(service)
     try:
@@ -46,23 +60,22 @@ def client(service):
                 resume_connection(service,client_socket)
                 msg_ID = 1
                 while True:
-                    # @ telmo - only implment the flags you need
+                    # @ telmo - you do not want it to wait 5 seconds
+                    # @ telmo - this is only for simulation purpouse
                     sleep(5)
-                    data_flag = ["OPEN_R","CLOSE_R","PHOTO_R","OPEN_E","CLOSE_E","PHOTO_E","SENSOR_E"]
-                    data_cont = data_flag[randint(0,len(data_flag)-1)]
+                    # @ telmo - instead of having send in the while True
+                    # @ telmo - you pass the parameters used in send
+                    # @ telmo - and you call it every time you need it
+                    send(service,client_socket,msg_ID,None)
+                    # @ telmo - you do want the following receiving loop body
+                    # @ telmo - always running on thread
                     # AVERAGE LOOP BODY #
-                    data_send = message(msg_ID,f"{data_cont}")
-                    data_encd = encode(data_send)
-                    log(f"{service}",f"sending {data_send}...")
-                    client_socket.sendall(data_encd)
-                    ####################
                     data_recv = client_socket.recv(1024)
                     if not data_recv:
                         break
                     data_decd = decode(data_recv)
                     msg_ID,msg_timestamp,msg_content = message_unpack(data_decd)
-                    log(f"{service}",f"received: {msg_ID} | {msg_timestamp} | {msg_content}")
-                    ####################
+                    recv(service,msg_ID,msg_timestamp,msg_content)
                     msg_ID += 1
             except Exception as e:
                 log(f"{service}",f"error: {e}")
