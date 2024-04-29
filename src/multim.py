@@ -21,25 +21,30 @@ import threading
 # EVENTS # 
 PLAY_EVENT = threading.Event() # used to notify communication can begin
 
-# resumes communication after both the client and your main are live #
 def play(service,client_socket):
-    _,_,msg_content = decode_packet(client_socket.recv(1024))
-    log_cnsl(service,"received SYNC!")    
-    if msg_content != "SYNC":
-        raise RuntimeError(f"SYNC expected yet {msg_content} received!")
-    ##########
-    _,data_encd = encode_packet(0,"SYNC_ACK")
-    log_cnsl(service,f"sending SYNC_ACK...")
-    client_socket.sendall(data_encd)
+    try:
+        _,_,msg_content = decode_packet(client_socket.recv(1024))
+        log_cnsl(service,"received SYNC!")    
+        if msg_content != "SYNC":
+            log_cnsl(service,f"SYNC expected yet {msg_content} received!")
+            client_socket.close()
+        ##########
+        _,data_encd = encode_packet(0,"SYNC_ACK")
+        log_cnsl(service,f"sending SYNC_ACK...")
+        client_socket.sendall(data_encd)
+    except Exception as e:
+        log_cnsl(service,f"caught: {e}")
+        client_socket.close()
 
 # call this function whenever you want to send data as long as play event is set #
 def send(service,client_socket,msg_ID,msg_content):
-    _,data_encd = encode_packet(msg_ID,msg_content)
-    log_cnsl(service,f"sending {msg_content}...")
     try:
+        _,data_encd = encode_packet(msg_ID,msg_content)
+        log_cnsl(service,f"sending {msg_content}...")
         client_socket.sendall(data_encd)
     except Exception as e:
         log_cnsl(service,f"catched: {e}")
+        client_socket.close()
 
 # modify this function to pattern match and treat what you will receive #
 def recv(service,msg_ID,msg_timestamp,msg_content):
@@ -55,11 +60,11 @@ def client(service):
         try:
             client_socket.connect((SERVICE_IPV4,SERVICE_PORT))
             log_cnsl(service,f"connection established with {SERVICE_IPV4}!")
+            global SERVICE_SOCKET
+            SERVICE_SOCKET = client_socket
+            play(service,client_socket)
+            PLAY_EVENT.set()
             try:
-                global SERVICE_SOCKET
-                SERVICE_SOCKET = client_socket
-                play(service,client_socket)
-                PLAY_EVENT.set()
                 while True:
                     data_recv = client_socket.recv(1024)
                     if not data_recv:
@@ -67,7 +72,9 @@ def client(service):
                     msg_ID,msg_timestamp,msg_content = decode_packet(data_recv)
                     recv(service,msg_ID,msg_timestamp,msg_content)
             except Exception as e:
-                log_cnsl(service,f"catched: {e}")
+                log_cnsl(service,f"caught: {e}")
+            finally:
+                client_socket.close()
         except ConnectionRefusedError:
             log_cnsl(service,f"connection with {SERVICE_IPV4} refused")
         finally:
