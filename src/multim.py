@@ -90,7 +90,7 @@ def yourMainLogic(service):
     while True:
         # @ telmo - for simulation purpose I will sleep 3 seconds and then call a random flag
         sleep(3)
-        data_buff = ["PHOTO_E"]
+        data_buff = ["OPEN_E","CLOSE_E","SENSOR_E","PHOTO_E"]
         data_flag = data_buff[randint(0,len(data_buff)-1)]
         # @ telmo - the following code you do apply
         send(service,client_socket,msg_ID,data_flag) 

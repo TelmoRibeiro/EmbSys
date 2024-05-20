@@ -15,7 +15,6 @@ import threading
 '''
 
 # EVENTS:
-MOUSET_EVENT = threading.Event() # used to notify the mouse-trap socket is known
 MULTIM_EVENT = threading.Event() # used to notify the multimedia socket is known
 MOBILE_EVENT = threading.Event() # used to notify the mobile     socket is known
 SENSOR_EVENT = threading.Event() # used to notify the sensor processing function
@@ -26,19 +25,13 @@ def stop(service,client_socket):
             global MOBILE_SOCKET
             MOBILE_SOCKET = client_socket
             MOBILE_EVENT.set()
-            while not MOUSET_EVENT.is_set() or not MULTIM_EVENT.is_set():
+            while not MULTIM_EVENT.is_set():
                 continue
         case MULTIM_SERVICE if MULTIM_SERVICE == network.MULTIM_SERVER:
             global MULTIM_SOCKET
             MULTIM_SOCKET = client_socket
             MULTIM_EVENT.set()
-            while not MOUSET_EVENT.is_set() or not MOBILE_EVENT.is_set():
-                continue
-        case MOUSET_SERVICE if MOUSET_SERVICE == network.MOUSET_SERVER:
-            global MOUSET_SOCKET
-            MOUSET_SOCKET = client_socket
-            MOUSET_EVENT.set()
-            while not MULTIM_EVENT.is_set() or not MOBILE_EVENT.is_set():
+            while not MOBILE_EVENT.is_set():
                 continue
         case _:
             log_cnsl(service,f"service={service} not supported!")
@@ -96,7 +89,7 @@ def message_control(service,msg_ID,msg_timestamp,msg_content):
     # @ telmo - not testing for msg_src...
     match msg_content:
         case FLAG if FLAG in ["OPEN_R","CLOSE_R","PHOTO_R"]:
-            client_socket = MOUSET_SOCKET
+            client_socket = MULTIM_SOCKET
             if SENSOR_EVENT.is_set() and FLAG != "PHOTO_R":
                 SENSOR_EVENT.clear()
             _,data_encd = encode_packet(msg_ID,msg_content,msg_timestamp)
@@ -127,7 +120,7 @@ def message_control(service,msg_ID,msg_timestamp,msg_content):
                 sleep(5)
                 # @ telmo - what shall happen if SENSOR_E arrives while SENSOR_E is processed?
                 if SENSOR_EVENT.is_set():
-                    client_socket = MOUSET_SOCKET
+                    client_socket = MULTIM_SOCKET
                     _,data_encd = encode_packet(msg_ID,"CLOSE_R")
                     log_cnsl(service,f"sending CLOSE_R...")
                     client_socket.sendall(data_encd)
@@ -143,10 +136,8 @@ def message_control(service,msg_ID,msg_timestamp,msg_content):
 def main():
     mobile_thread = threading.Thread(target=server,args=(network.MOBILE_SERVER,))
     multim_thread = threading.Thread(target=server,args=(network.MULTIM_SERVER,))
-    mouset_thread = threading.Thread(target=server,args=(network.MOUSET_SERVER,))
     mobile_thread.start()
     multim_thread.start()
-    mouset_thread.start()
     # RUNNING THREADS #
 
 if __name__ == "__main__": main()
