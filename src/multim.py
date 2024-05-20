@@ -5,6 +5,7 @@ from time              import sleep
 from random            import randint
 import socket
 import threading
+import serial
 
 '''
     ATTENTION:
