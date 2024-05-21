@@ -14,47 +14,80 @@ import threading
 '''
 
 # EVENTS:
-MULTIM_EVENT = threading.Event() # MULTIM CENTER ONLINE?
-MOBILE_EVENT = threading.Event() # MOBILE CENTER ONLINE?
-SENSOR_EVENT = threading.Event() # SENSOR SMART PROCESSING
+MULTIM_ONLINE = threading.Event() # MULTIM CENTER ONLINE?
+MOBILE_ONLINE = threading.Event() # MOBILE CENTER ONLINE?
+SENSOR_EVENT  = threading.Event() # SENSOR SMART PROCESSING
 
 def stop(service,client_socket):
     match service:
-        case MOBILE_SERVICE if MOBILE_SERVICE == network.MOBILE_SERVER:
+        case THIS_SERVICE if THIS_SERVICE == network.MOBILE_SERVER:
             global MOBILE_SOCKET
             MOBILE_SOCKET = client_socket
-            MOBILE_EVENT.set()
-            while not MULTIM_EVENT.is_set():
+            MOBILE_ONLINE.set()
+            while not MULTIM_ONLINE.is_set():
                 sleep(1)
                 _,data_encd = encode_packet(0,"NSYNC")
-                log_cnsl(service,"sending NSYNC...")
-                client_socket.sendall(data_encd)
-        case MULTIM_SERVICE if MULTIM_SERVICE == network.MULTIM_SERVER:
+                try:
+                    log_cnsl(service,"sending NSYNC...")
+                    client_socket.sendall(data_encd)
+                except Exception as e:
+                    log_cnsl(service,f"detected DOWNTIME while sending")
+                    MOBILE_ONLINE.clear()
+                    client_socket.close()
+                    return
+        case THIS_SERVICE if THIS_SERVICE == network.MULTIM_SERVER:
             global MULTIM_SOCKET
             MULTIM_SOCKET = client_socket
-            MULTIM_EVENT.set()
-            while not MOBILE_EVENT.is_set():
+            MULTIM_ONLINE.set()
+            while not MOBILE_ONLINE.is_set():
                 sleep(1)
                 _,data_encd = encode_packet(0,"NSYNC")
-                log_cnsl(service,"sending NSYNC...")
-                client_socket.sendall(data_encd)
+                try:
+                    log_cnsl(service,"sending NSYNC...")
+                    client_socket.sendall(data_encd)
+                except Exception as e:
+                    log_cnsl(service,f"detected DOWNTIME while sending")
+                    MULTIM_ONLINE.clear()
+                    client_socket.close()
+                    return
         case _:
             log_cnsl(service,f"service={service} not supported!")
             client_socket.close()
+            return
 
 def play(service,client_socket):
+    _,data_encd = encode_packet(0,"SYNC")
     try:
-        _,data_encd = encode_packet(0,"SYNC")
         log_cnsl(service,"sending SYNC...")
         client_socket.sendall(data_encd)
-        ##########
+    except Exception as e:
+        match service:
+            case network.MOBILE_SERVER:
+                log_cnsl(service,f"detected DOWNTIME while sending")
+                MOBILE_ONLINE.clear()
+            case network.MULTIM_SERVER:
+                log_cnsl(service,f"detected DOWNTIME while sending")
+                MULTIM_ONLINE.clear()
+            case _:
+                log_cnsl(service,f"service={service} not supported!")
+        client_socket.close()  
+    ##########
+    try:
         _,_,msg_content = decode_packet(client_socket.recv(1024))
         log_cnsl(service,"received SYNC_ACK!")
         if msg_content != "SYNC_ACK":
             log_cnsl(service,f"SYNC_ACK expected yet {msg_content} received")
             client_socket.close()
     except Exception as e:
-        log_cnsl(service,f"caught: {e}")
+        match service:
+            case network.MOBILE_SERVER:
+                log_cnsl(service,f"detected DOWNTIME while receiving")
+                MOBILE_ONLINE.clear()
+            case network.MULTIM_SERVER:
+                log_cnsl(service,f"detected DOWNTIME while receiving")
+                MULTIM_ONLINE.clear()
+            case _:
+                log_cnsl(service,f"service={service} not supported!")
         client_socket.close()
 
 def server(service):
@@ -72,7 +105,7 @@ def server(service):
             play(service,client_socket)
             try:
                 while True:
-                    if not MOBILE_EVENT.is_set() or not MULTIM_EVENT.is_set():
+                    if not MOBILE_ONLINE.is_set() or not MULTIM_ONLINE.is_set():
                         _,data_encd = encode_packet(-1,"SHUTDOWN")
                         log_cnsl(service,f"sending SHUTDOWN...")
                         client_socket.sendall(data_encd)
@@ -85,7 +118,15 @@ def server(service):
                     message_control_thread = threading.Thread(target=message_control,args=(service,msg_ID,msg_timestamp,msg_content,))
                     message_control_thread.start()
             except Exception as e:
-                log_cnsl(service,f"caught: {e}")
+                match service:
+                    case network.MOBILE_SERVER:
+                        log_cnsl(service,f"detected DOWNTIME while receiving")
+                        MOBILE_ONLINE.clear()
+                    case network.MULTIM_SERVER:
+                        log_cnsl(service,f"detected DOWNTIME while receiving")
+                        MULTIM_ONLINE.clear()
+                    case _:
+                        log_cnsl(service,f"service={service} not supported!")
                 client_socket.close()
     except KeyboardInterrupt:
         log_cnsl(service,"shutting down...")
@@ -104,16 +145,8 @@ def message_control(service,msg_ID,msg_timestamp,msg_content):
                 log_cnsl(service,f"sending {msg_content}...")
                 client_socket.sendall(data_encd)
             except Exception as e:
-                match service:
-                    case network.MOBILE_SERVER:
-                        print("shutting down mobile...")
-                        MOBILE_EVENT.clear()
-                    case network.MULTIM_SERVER:
-                        print("shutting down multim...")
-                        MULTIM_EVENT.clear()
-                    case _:
-                        log_cnsl(service,f"service={msg_content} not supported!")
-                log_cnsl(service,f"caught: {e}")
+                log_cnsl(service,"detected DOWNTIME while sending")
+                MULTIM_ONLINE.clear()
                 client_socket.close()
         case FLAG if FLAG in ["OPEN_E","CLOSE_E","PHOTO_E"]:
             client_socket = MOBILE_SOCKET
@@ -122,16 +155,8 @@ def message_control(service,msg_ID,msg_timestamp,msg_content):
                 log_cnsl(service,f"sending {msg_content}...")
                 client_socket.sendall(data_encd)
             except Exception as e:
-                match service:
-                    case network.MOBILE_SERVER:
-                        print("shutting down mobile...")
-                        MOBILE_EVENT.clear()
-                    case network.MULTIM_SERVER:
-                        print("shutting down multim...")
-                        MULTIM_EVENT.clear()
-                    case _:
-                        log_cnsl(service,f"service={msg_content} not supported!")
-                log_cnsl(service,f"caught: {e}")
+                log_cnsl(service,"detected DOWNTIME while sending")
+                MOBILE_ONLINE.clear()
                 client_socket.close()
         case FLAG if FLAG in ["SENSOR_E"]:
             client_socket = MOBILE_SOCKET
@@ -145,22 +170,19 @@ def message_control(service,msg_ID,msg_timestamp,msg_content):
                 if SENSOR_EVENT.is_set():
                     client_socket = MULTIM_SOCKET
                     _,data_encd = encode_packet(msg_ID,"CLOSE_R")
-                    log_cnsl(service,f"sending CLOSE_R...")
-                    client_socket.sendall(data_encd)
+                    try:
+                        log_cnsl(service,f"sending CLOSE_R...")
+                        client_socket.sendall(data_encd)
+                    except Exception as e:
+                        log_cnsl(service,f"detected DOWNTIME while sending")
+                        MULTIM_ONLINE.clear()
+                        client_socket.close()    
                 SENSOR_EVENT.clear()
             except Exception as e:
-                match service:
-                    case network.MOBILE_SERVER:
-                        print("shutting down mobile...")
-                        MOBILE_EVENT.clear()
-                    case network.MULTIM_SERVER:
-                        print("shutting down multim...")
-                        MULTIM_EVENT.clear()
-                    case _:
-                        log_cnsl(service,f"service={msg_content} not supported!")
-                log_cnsl(service,f"caught: {e}")
+                log_cnsl(service,"detected DOWNTIME while sending")
+                MOBILE_ONLINE.clear()
                 client_socket.close()
-        case _: 
+        case _:
             log_cnsl(service,f"service={msg_content} not supported!")
             client_socket.close()
 
