@@ -24,11 +24,17 @@ PLAY_EVENT = threading.Event() # used to notify communication can begin
 
 def play(service,client_socket):
     try:
-        _,_,msg_content = decode_packet(client_socket.recv(1024))
-        log_cnsl(service,"received SYNC!")    
-        if msg_content != "SYNC":
-            log_cnsl(service,f"SYNC expected yet {msg_content} received!")
-            client_socket.close()
+        while True:
+            _,_,msg_content = decode_packet(client_socket.recv(1024))    
+            if msg_content != "SYNC" and msg_content != "NSYNC":
+                log_cnsl(service,f"SYNC/NSYNC expected yet {msg_content} received!")
+                client_socket.close()
+                return
+            if msg_content == "NSYNC":
+                log_cnsl(service,f"received NSYNC")
+                continue
+            log_cnsl(service,f"received SYNC")
+            break
         ##########
         _,data_encd = encode_packet(0,"SYNC_ACK")
         log_cnsl(service,f"sending SYNC_ACK...")
@@ -39,6 +45,10 @@ def play(service,client_socket):
 
 # call this function whenever you want to send data as long as play event is set #
 def send(service,client_socket,msg_ID,msg_content):
+    if not PLAY_EVENT.is_set():
+        log_cnsl(service, f"NO CONNECTION!")
+        client_socket.close()
+        return
     try:
         _,data_encd = encode_packet(msg_ID,msg_content)
         log_cnsl(service,f"sending {msg_content}...")
@@ -51,6 +61,9 @@ def send(service,client_socket,msg_ID,msg_content):
 def recv(service,msg_ID,msg_timestamp,msg_content):
     # @ telmo - for simulation purpose I will just log it
     match msg_content:
+        case "SHUTDOWN":
+            PLAY_EVENT.clear()
+            log_cnsl(service,f"received SHUTDOWN")
         case _: log_cnsl(service,f"received {msg_content}!")
 
 def client(service):
@@ -67,6 +80,8 @@ def client(service):
             PLAY_EVENT.set()
             try:
                 while True:
+                    if not PLAY_EVENT.is_set():
+                        return
                     data_recv = client_socket.recv(1024)
                     if not data_recv:
                         break
@@ -89,9 +104,11 @@ def yourMainLogic(service):
     client_socket = SERVICE_SOCKET
     msg_ID = 1
     while True:
+        if not PLAY_EVENT.is_set():
+            return
         # @ telmo - for simulation purpose I will sleep 3 seconds and then call a random flag
         sleep(3)
-        data_buff = ["OPEN_E","CLOSE_E","SENSOR_E","PHOTO_E"]
+        data_buff = ["SENSOR_E"]
         data_flag = data_buff[randint(0,len(data_buff)-1)]
         # @ telmo - the following code you do apply
         send(service,client_socket,msg_ID,data_flag) 

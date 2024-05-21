@@ -8,16 +8,15 @@ import threading
 '''
     ATTENTION:
         I AM AWARE THERE ARE SOME COMMUNICATION BUGS
-        WHEN CONNECTION FAILS WITH SOMEONE ALL THE CONNECTIONS SHOULD BE DROPPED AND TRIED AGAIN
         IF YOU UNCOVER BUGS
         === HIT ME ON DMs ===
     TelmoRibeiro
 '''
 
 # EVENTS:
-MULTIM_EVENT = threading.Event() # used to notify the multimedia socket is known
-MOBILE_EVENT = threading.Event() # used to notify the mobile     socket is known
-SENSOR_EVENT = threading.Event() # used to notify the sensor processing function
+MULTIM_EVENT = threading.Event() # MULTIM CENTER ONLINE?
+MOBILE_EVENT = threading.Event() # MOBILE CENTER ONLINE?
+SENSOR_EVENT = threading.Event() # SENSOR SMART PROCESSING
 
 def stop(service,client_socket):
     match service:
@@ -26,17 +25,22 @@ def stop(service,client_socket):
             MOBILE_SOCKET = client_socket
             MOBILE_EVENT.set()
             while not MULTIM_EVENT.is_set():
-                continue
+                sleep(1)
+                _,data_encd = encode_packet(0,"NSYNC")
+                log_cnsl(service,"sending NSYNC...")
+                client_socket.sendall(data_encd)
         case MULTIM_SERVICE if MULTIM_SERVICE == network.MULTIM_SERVER:
             global MULTIM_SOCKET
             MULTIM_SOCKET = client_socket
             MULTIM_EVENT.set()
             while not MOBILE_EVENT.is_set():
-                continue
+                sleep(1)
+                _,data_encd = encode_packet(0,"NSYNC")
+                log_cnsl(service,"sending NSYNC...")
+                client_socket.sendall(data_encd)
         case _:
             log_cnsl(service,f"service={service} not supported!")
             client_socket.close()
-            raise RuntimeError(f"service={service} not supported!")
 
 def play(service,client_socket):
     try:
@@ -52,7 +56,6 @@ def play(service,client_socket):
     except Exception as e:
         log_cnsl(service,f"caught: {e}")
         client_socket.close()
-        raise RuntimeError(f"caught: {e}")
 
 def server(service):
     server_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM) # tcp connection
@@ -69,6 +72,11 @@ def server(service):
             play(service,client_socket)
             try:
                 while True:
+                    if not MOBILE_EVENT.is_set() or not MULTIM_EVENT.is_set():
+                        _,data_encd = encode_packet(-1,"SHUTDOWN")
+                        log_cnsl(service,f"sending SHUTDOWN...")
+                        client_socket.sendall(data_encd)
+                        break
                     data_recv = client_socket.recv(1024)
                     if not data_recv:
                         break
@@ -79,7 +87,6 @@ def server(service):
             except Exception as e:
                 log_cnsl(service,f"caught: {e}")
                 client_socket.close()
-                raise RuntimeError(f"caught: {e}")
     except KeyboardInterrupt:
         log_cnsl(service,"shutting down...")
     finally:
@@ -97,9 +104,17 @@ def message_control(service,msg_ID,msg_timestamp,msg_content):
                 log_cnsl(service,f"sending {msg_content}...")
                 client_socket.sendall(data_encd)
             except Exception as e:
+                match service:
+                    case network.MOBILE_SERVER:
+                        print("shutting down mobile...")
+                        MOBILE_EVENT.clear()
+                    case network.MULTIM_SERVER:
+                        print("shutting down multim...")
+                        MULTIM_EVENT.clear()
+                    case _:
+                        log_cnsl(service,f"service={msg_content} not supported!")
                 log_cnsl(service,f"caught: {e}")
                 client_socket.close()
-                raise RuntimeError(f"caught: {e}")
         case FLAG if FLAG in ["OPEN_E","CLOSE_E","PHOTO_E"]:
             client_socket = MOBILE_SOCKET
             _,data_encd = encode_packet(msg_ID,msg_content,msg_timestamp)
@@ -107,9 +122,17 @@ def message_control(service,msg_ID,msg_timestamp,msg_content):
                 log_cnsl(service,f"sending {msg_content}...")
                 client_socket.sendall(data_encd)
             except Exception as e:
+                match service:
+                    case network.MOBILE_SERVER:
+                        print("shutting down mobile...")
+                        MOBILE_EVENT.clear()
+                    case network.MULTIM_SERVER:
+                        print("shutting down multim...")
+                        MULTIM_EVENT.clear()
+                    case _:
+                        log_cnsl(service,f"service={msg_content} not supported!")
                 log_cnsl(service,f"caught: {e}")
                 client_socket.close()
-                raise RuntimeError(f"caught: {e}")
         case FLAG if FLAG in ["SENSOR_E"]:
             client_socket = MOBILE_SOCKET
             _,data_encd = encode_packet(msg_ID,msg_content,msg_timestamp)
@@ -126,12 +149,20 @@ def message_control(service,msg_ID,msg_timestamp,msg_content):
                     client_socket.sendall(data_encd)
                 SENSOR_EVENT.clear()
             except Exception as e:
+                match service:
+                    case network.MOBILE_SERVER:
+                        print("shutting down mobile...")
+                        MOBILE_EVENT.clear()
+                    case network.MULTIM_SERVER:
+                        print("shutting down multim...")
+                        MULTIM_EVENT.clear()
+                    case _:
+                        log_cnsl(service,f"service={msg_content} not supported!")
                 log_cnsl(service,f"caught: {e}")
                 client_socket.close()
-                raise RuntimeError(f"caught: {e}")
         case _: 
             log_cnsl(service,f"service={msg_content} not supported!")
-            raise RuntimeError(f"service={msg_content} not supported!")
+            client_socket.close()
 
 def main():
     mobile_thread = threading.Thread(target=server,args=(network.MOBILE_SERVER,))
