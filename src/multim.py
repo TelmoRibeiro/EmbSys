@@ -107,7 +107,7 @@ def yourMainLogic(service):
         if not PLAY_EVENT.is_set():
             return
         # @ telmo - for simulation purpose I will sleep 3 seconds and then call a random flag
-        sleep(1)
+        sleep(3)
         data_buff = ["SENSOR_E"]
         data_flag = data_buff[randint(0,len(data_buff)-1)]
         # @ telmo - the following code you do apply
