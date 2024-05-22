@@ -1,8 +1,10 @@
 # Mouse Trap
-## Project Structure:
-### report
-- PDFs regarding the project implementation
-### src
-- source code
+
+## Known Bugs
+- there is a stuck state on the Communication Center endpoint (occurrences:Low | replicate:Hard)
+
+## To Do
+- thread communication on multim.py endpoint (serial)
+
 ## Contacts
 telmo.ribeiro@fc.up.pt
