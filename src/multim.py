@@ -6,7 +6,7 @@ from random            import randint
 import socket
 import threading
 
-from picamera2 import Picamera2 # photos on arduino
+# from picamera2 import Picamera2 # photos on arduino
 import os                       # ???
 import serial                   # pyserial
 import struct                   # header fix
@@ -26,13 +26,13 @@ from PIL import Image
 
 
 
-PHOTO_DIRECTORY = "./photos/" # TEST WITHOUT ME!
-PHOTO_SIZE      = 5           # PHOTO BUFFER SIZE
+PHOTO_DIRECTORY = "./pics/" # save pics here! / TEST WITHOUT ME
+PHOTO_BUFF_SIZE =  5        # max #pics in buff
 
 # EVENTS # 
 SERVICE_ONLINE = threading.Event() # SERVICE ONLINE?
-PROTO_EVENT    = threading.Event() # client -> ard_client comms
-PROTO_GLOBAL   = None              # client -> ard_client comms
+
+PROTOA_EVENT    = threading.Event() # client -> ard_client comms
 
 def play(service,client_socket):
     try:
@@ -75,11 +75,28 @@ def send(service,client_socket,msg_ID,msg_content):
 # modify this function to pattern match and treat what you will receive #
 def recv(service,msg_ID,msg_timestamp,msg_content):
     # @ telmo - for simulation purpose I will just log it
+    global PROTOA_GLOBAL
     match msg_content:
         case "SHUTDOWN":
             log_cnsl(service,f"received SHUTDOWN")
             SERVICE_ONLINE.clear()
-        case _: log_cnsl(service,f"received {msg_content}!")
+        case "OPEN_R":
+            log_cnsl(service,f"received OPEN_R")
+            # global PROTOA_GLOBAL
+            data_send,PROTOA_GLOBAL = encode_packet(msg_ID,msg_content)
+            log_cnsl(service,f"forwarding to ARD-CLNT: {data_send}")
+            PROTOA_EVENT.set()
+        case "CLOSE_R":
+            log_cnsl(service,f"received CLOSE_R")
+            # global PROTOA_GLOBAL
+            data_send,PROTOA_GLOBAL = encode_packet(msg_ID,msg_content)
+            log_cnsl(service,f"forwarding to ARD-CLNT: {data_send}")
+            PROTOA_EVENT.set()
+        case "PHOTO_R":
+            log_cnsl(service,f"received PHOTO_R | NOT YET!")
+        case _: 
+            log_cnsl(service,f"service={msg_content} not supported!")
+            SERVICE_ONLINE.clear()
 
 def client(service):
     try:
@@ -124,35 +141,54 @@ def arduino_client(service):
         while True:
             if not SERVICE_ONLINE.is_set():
                 break # CHECK THIS
-            msg_ID,msg_timestamp,msg_content = decode_packet(serial_socket.readline())
-            match msg_content:
-                case "SENSOR_E":
-                    ???
-                case "OPEN_E":
-                    ???
-                case "CLOSE_E":
-                    ???
-                case _:
-                    log_cnsl(service,f"service={service} not supported!")
-                    SERVICE_ONLINE.clear()
-                    # maybe close arduino socket here
-            if PROTO_EVENT.is_set():
-                message = PROTO_GLOBAL
+            # not 100%
+            if serial_socket.in_waiting:
+                msg_ID,msg_timestamp,msg_content = decode_packet(serial_socket.readline())
+                log_cnsl(service,f"received {msg_content} from SERIAL")
+                message_control_thread = threading.Thread(target=message_control,args=(service,serial_socket,msg_ID,msg_timestamp,msg_content,))
+                message_control_thread.start()
+            if PROTOA_EVENT.is_set():
+                PROTOA_EVENT.clear() 
+                global PROTOA_GLOBAL
+                message = PROTOA_GLOBAL
                 msg_ID,msg_timestamp,msg_content = decode_packet(message)
-                match msg_content:
-                    case "OPEN_R":
-                        ???
-                    case "CLOSE_R":
-                        ???
-                    case _:
-                        log_cnsl(service,f"service={service} not supported!")
-                        SERVICE_ONLINE.clear()
-                        # maybe close arduino socket here
+                log_cnsl(service,f"received {msg_content} from WIFI")
+                message_control_thread = threading.Thread(target=message_control,args=(service,serial_socket,msg_ID,msg_timestamp,msg_content,))
+                message_control_thread.start()        
     except Exception as e:
-        log_cnsl(service,f"detected DOWNTIME")
+        log_cnsl(service,f"detected DOWNTIME {e}")
         SERVICE_ONLINE.clear()
-        # maybe close arduino socket here
+        serial_socket.close()
 
+def message_control(service,serial_socket,msg_ID,msg_timestamp,msg_content):
+    global PROTOA_GLOBAL
+    match msg_content:
+        case "SENSOR_E":
+            client_socket = SERVICE_SOCKET
+            send(service,client_socket,msg_ID,msg_content)
+        case "OPEN_E":
+            client_socket = SERVICE_SOCKET
+            send(service,client_socket,msg_ID,msg_content)
+        case "CLOSE_E":
+            client_socket = SERVICE_ONLINE
+            send(service,client_socket,msg_ID,msg_content)
+        case "OPEN_R":
+            _,message = encode_packet(msg_ID,msg_content,msg_timestamp)
+            serial_socket.write(message)
+            PROTOA_GLOBAL = None
+            PROTOA_EVENT.clear()
+        case "CLOSE_R":
+            _,message = encode_packet(msg_ID,msg_content,msg_timestamp)
+            serial_socket.write(message)
+            PROTOA_GLOBAL = None
+            PROTOA_EVENT.clear()
+        case _:
+            log_cnsl(service,f"service={service} not supported!")
+            SERVICE_ONLINE.clear()
+            serial_socket.close()
+            client_socket = SERVICE_SOCKET  # maybe not needed
+            client_socket.close()           # maybe not needed
+'''
 def yourMainLogic(service):
     while not SERVICE_ONLINE.is_set():
         continue
@@ -169,10 +205,11 @@ def yourMainLogic(service):
         send(service,client_socket,msg_ID,data_flag) 
         msg_ID += 1
         # THE REST OF UR CODE #
+'''
 
 def main():
     multim_thread = threading.Thread(target=client,args=(network.MULTIM_CLIENT,))
-    mouset_thread = threading.Thread(target=arduino_client,args=(network.MOBILE_CLIENT+"-ARD"))
+    mouset_thread = threading.Thread(target=arduino_client,args=(network.MULTIM_CLIENT+"-ARD",))
     multim_thread.start()
     mouset_thread.start()
     

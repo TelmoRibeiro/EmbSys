@@ -16,7 +16,7 @@ String DoorStatus = "OPEN"; // current door status
 bool   freshValue = true;   // new SENSOR_E?
 
 unsigned long timestamp = 0; // msg timestamp
-unsigned long messageID = 0; // msg ID
+unsigned long messageID = 1; // msg ID
 
 
 void setup() {
