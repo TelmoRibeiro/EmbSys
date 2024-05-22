@@ -21,7 +21,7 @@ unsigned long messageID = 0; // msg ID
 
 void setup() {
     // SETUP SENSOR //
-    pinMode(SensorInputPin, INPUT);
+    pinMode(SensorInputPin,INPUT);
     pinMode(SensorOutputPin,OUTPUT);
     
     // OPEN DOOR (at the start) //
@@ -32,7 +32,7 @@ void setup() {
 }
 
 void loop() {
-    digitalWrite(SensorOuputPin,LOW);   // @ telmo - LOW?
+    digitalWrite(SensorOutputPin,LOW);   // @ telmo - LOW?
     delayMicroseconds(2);               // @ telmo - why this?
     digitalWrite(SensorOutputPin,HIGH); // @ telmo - HIGH?
     delayMicroseconds(10);              // @ telmo - why this?
@@ -47,7 +47,7 @@ void loop() {
     if (currentDistance <= SensorDistance && freshValue) {
          timestamp = millis(); // @ telmo - not quite
          String message = String(messageID) + "@" + String(timestamp) + "@" + "SENSOR_E" + "@";
-         Serial.print(message);
+         Serial.println(message);
          messageID++;
          freshValue = false;
     }
@@ -65,7 +65,7 @@ void loop() {
       int pos4 = message.indexOf('@', pos3 + 1);
       String flag = message.substring(pos3 + 1, pos4);
       // @ telmo - CRISTINA code block ends //
-      if ((flag == "OPEN_R" && doorStatus = "CLOSE") || (flag == "CLOSE_R" && doorStatus == "OPEN")) {
+      if ((flag == "OPEN_R" && DoorStatus == "CLOSE") || (flag == "CLOSE_R" && DoorStatus == "OPEN")) {
         actuateServo(flag);
       }
     }
@@ -73,18 +73,18 @@ void loop() {
 
 void actuateServo(String flag) {
   if (flag == "CLOSE_R") {
-    servo.attach(ServoOutputPin);
+    servo.attach(ServoOuputPin);
     servo.write(0);
     delay(DoorDelay); // @ telmo - why do we need to delay?
     servo.detach();
-    doorStatus = "CLOSE";
+    DoorStatus = "CLOSE";
   }
   else if (flag == "OPEN_R") {
-    servo.attach(ServoOutputPin);
-    servo.write(90);
+    servo.attach(ServoOuputPin);
+    servo.write(180);
     delay(DoorDelay); // @ telmo - why do we need to delay?
     servo.detach();
-    doorStatus = "OPEN";
+    DoorStatus = "OPEN";
   }
-  else Serial.write("OOPS!")
+  else Serial.write("OOPS!");
 }
