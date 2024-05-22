@@ -7,7 +7,7 @@ import threading
 
 '''
     ATTENTION:
-        I AM AWARE THERE ARE SOME COMMUNICATION BUGS
+        THERE IS A STUCK STATE BUT I AM NOT AWARE HOW TO REPLICATE IT
         IF YOU UNCOVER BUGS
         === HIT ME ON DMs ===
     TelmoRibeiro
