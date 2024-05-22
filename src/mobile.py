@@ -19,7 +19,7 @@ import threading
 '''
 
 # EVENTS # 
-PLAY_EVENT = threading.Event() # used to notify communication can begin
+SERVICE_ONLINE = threading.Event() # SERVICE ONLINE?
 
 def play(service,client_socket):
     try:
@@ -27,6 +27,7 @@ def play(service,client_socket):
             _,_,msg_content = decode_packet(client_socket.recv(1024))    
             if msg_content != "SYNC" and msg_content != "NSYNC":
                 log_cnsl(service,f"SYNC/NSYNC expected yet {msg_content} received!")
+                SERVICE_ONLINE.clear()
                 client_socket.close()
                 return
             if msg_content == "NSYNC":
@@ -39,21 +40,23 @@ def play(service,client_socket):
         log_cnsl(service,f"sending SYNC_ACK...")
         client_socket.sendall(data_encd)
     except Exception as e:
-        log_cnsl(service,f"caught: {e}")
+        log_cnsl(service,f"detected DOWNTIME")
+        SERVICE_ONLINE.clear()
         client_socket.close()
 
 # call this function whenever you want to send data as long as play event is set #
 def send(service,client_socket,msg_ID,msg_content):
-    if not PLAY_EVENT.is_set():
-        log_cnsl(service, f"NO CONNECTION!")
-        client_socket.close()
-        return
     try:
+        if not SERVICE_ONLINE.is_set():
+            log_cnsl(service+"-MAIN",f"NO CONNECTION!")
+            client_socket.close()
+            return
         _,data_encd = encode_packet(msg_ID,msg_content)
-        log_cnsl(service,f"sending {msg_content}...")
+        log_cnsl(service+"-MAIN",f"sending {msg_content}...")
         client_socket.sendall(data_encd)
     except Exception as e:
-        log_cnsl(service,f"caught: {e}")
+        log_cnsl(service+"-MAIN",f"detected DOWNTIME")
+        SERVICE_ONLINE.clear()
         client_socket.close()
 
 # modify this function to pattern match and treat what you will receive #
@@ -61,8 +64,8 @@ def recv(service,msg_ID,msg_timestamp,msg_content):
     # @ telmo - for simulation purpose I will just log it
     match msg_content:
         case "SHUTDOWN":
-            PLAY_EVENT.clear()
             log_cnsl(service,f"received SHUTDOWN")
+            SERVICE_ONLINE.clear()
         case _: log_cnsl(service,f"received {msg_content}!")
 
 def client(service):
@@ -76,34 +79,36 @@ def client(service):
             global SERVICE_SOCKET
             SERVICE_SOCKET = client_socket
             play(service,client_socket)
-            PLAY_EVENT.set()
+            SERVICE_ONLINE.set()
             try:
                 while True:
-                    if not PLAY_EVENT.is_set():
+                    if not SERVICE_ONLINE.is_set():
                         return
                     data_recv = client_socket.recv(1024)
                     if not data_recv:
+                        SERVICE_ONLINE.clear()
                         break
                     msg_ID,msg_timestamp,msg_content = decode_packet(data_recv)
                     recv(service,msg_ID,msg_timestamp,msg_content)
             except Exception as e:
-                log_cnsl(service,f"caught: {e}")
-            finally:
+                log_cnsl(service,f"detected DOWNTIME")
+                SERVICE_ONLINE.clear()
                 client_socket.close()
         except ConnectionRefusedError:
             log_cnsl(service,f"connection with {SERVICE_IPV4} refused")
-        finally:
+            SERVICE_ONLINE.clear()
             client_socket.close()
     except KeyboardInterrupt:
         log_cnsl(service,"shutting down...")
+        SERVICE_ONLINE.clear()
 
 def yourMainLogic(service):
-    while not PLAY_EVENT.is_set():
+    while not SERVICE_ONLINE.is_set():
         continue
     client_socket = SERVICE_SOCKET
     msg_ID = 1
     while True:
-        if not PLAY_EVENT.is_set():
+        if not SERVICE_ONLINE.is_set():
             return
         # @ telmo - for simulation purpose I will sleep 3 seconds and then call a random flag
         sleep(3)
