@@ -1,10 +1,16 @@
 import utilities.network   as network
-from utilities.message import encode_packet,decode_packet
+from utilities.message import encode_packet,decode_packet,message_unpack # may remove this later
 from utilities.log     import log_cnsl
 from time              import sleep
 from random            import randint
 import socket
 import threading
+
+from picamera2 import Picamera2 # photos on arduino
+import os                       # ???
+import serial                   # pyserial
+import struct                   # header fix
+from PIL import Image
 
 '''
     ATTENTION:
@@ -18,8 +24,15 @@ import threading
     TelmoRibeiro
 '''
 
+
+
+PHOTO_DIRECTORY = "./photos/" # TEST WITHOUT ME!
+PHOTO_SIZE      = 5           # PHOTO BUFFER SIZE
+
 # EVENTS # 
 SERVICE_ONLINE = threading.Event() # SERVICE ONLINE?
+PROTO_EVENT    = threading.Event() # client -> ard_client comms
+PROTO_GLOBAL   = None              # client -> ard_client comms
 
 def play(service,client_socket):
     try:
@@ -102,6 +115,44 @@ def client(service):
         log_cnsl(service,"shutting down...")
         SERVICE_ONLINE.clear()
 
+def arduino_client(service):
+    try:
+        serial_socket = serial.Serial('/dev/ttyACM0',9600)
+        serial_socket.reset_input_buffer()
+        while not SERVICE_ONLINE.is_set():
+            continue
+        while True:
+            if not SERVICE_ONLINE.is_set():
+                break # CHECK THIS
+            msg_ID,msg_timestamp,msg_content = decode_packet(serial_socket.readline())
+            match msg_content:
+                case "SENSOR_E":
+                    ???
+                case "OPEN_E":
+                    ???
+                case "CLOSE_E":
+                    ???
+                case _:
+                    log_cnsl(service,f"service={service} not supported!")
+                    SERVICE_ONLINE.clear()
+                    # maybe close arduino socket here
+            if PROTO_EVENT.is_set():
+                message = PROTO_GLOBAL
+                msg_ID,msg_timestamp,msg_content = decode_packet(message)
+                match msg_content:
+                    case "OPEN_R":
+                        ???
+                    case "CLOSE_R":
+                        ???
+                    case _:
+                        log_cnsl(service,f"service={service} not supported!")
+                        SERVICE_ONLINE.clear()
+                        # maybe close arduino socket here
+    except Exception as e:
+        log_cnsl(service,f"detected DOWNTIME")
+        SERVICE_ONLINE.clear()
+        # maybe close arduino socket here
+
 def yourMainLogic(service):
     while not SERVICE_ONLINE.is_set():
         continue
@@ -121,9 +172,12 @@ def yourMainLogic(service):
 
 def main():
     multim_thread = threading.Thread(target=client,args=(network.MULTIM_CLIENT,))
+    mouset_thread = threading.Thread(target=arduino_client,args=(network.MOBILE_CLIENT+"-ARD"))
     multim_thread.start()
-    urmain_multim_thread = threading.Thread(target=yourMainLogic,args=(network.MULTIM_CLIENT,))
-    urmain_multim_thread.start()
+    mouset_thread.start()
+    
+    #urmain_multim_thread = threading.Thread(target=yourMainLogic,args=(network.MULTIM_CLIENT,))
+    #urmain_multim_thread.start()
     # RUNNING THREADS #
 
 if __name__ == "__main__": main()
