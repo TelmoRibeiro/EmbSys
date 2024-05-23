@@ -24,8 +24,6 @@ from PIL import Image
     TelmoRibeiro
 '''
 
-
-
 PHOTO_DIRECTORY = "./pics/" # save pics here! / TEST WITHOUT ME
 PHOTO_BUFF_SIZE =  5        # max #pics in buff
 
@@ -61,14 +59,14 @@ def play(service,client_socket):
 def send(service,client_socket,msg_ID,msg_content):
     try:
         if not SERVICE_ONLINE.is_set():
-            log_cnsl(service+"-MAIN",f"NO CONNECTION!")
+            log_cnsl(service,f"NO CONNECTION!")
             client_socket.close()
             return
         _,data_encd = encode_packet(msg_ID,msg_content)
-        log_cnsl(service+"-MAIN",f"sending {msg_content}...")
+        log_cnsl(service,f"sending {msg_content}...")
         client_socket.sendall(data_encd)
     except Exception as e:
-        log_cnsl(service+"MAIN",f"detected DOWNTIME")
+        log_cnsl(service,f"detected DOWNTIME")
         SERVICE_ONLINE.clear()
         client_socket.close()
 
@@ -144,6 +142,7 @@ def arduino_client(service):
             # not 100%
             if serial_socket.in_waiting:
                 msg_ID,msg_timestamp,msg_content = decode_packet(serial_socket.readline())
+                print(message) # remove this
                 log_cnsl(service,f"received {msg_content} from SERIAL")
                 message_control_thread = threading.Thread(target=message_control,args=(service,serial_socket,msg_ID,msg_timestamp,msg_content,))
                 message_control_thread.start()
@@ -170,7 +169,7 @@ def message_control(service,serial_socket,msg_ID,msg_timestamp,msg_content):
             client_socket = SERVICE_SOCKET
             send(service,client_socket,msg_ID,msg_content)
         case "CLOSE_E":
-            client_socket = SERVICE_ONLINE
+            client_socket = SERVICE_SOCKET  
             send(service,client_socket,msg_ID,msg_content)
         case "OPEN_R":
             _,message = encode_packet(msg_ID,msg_content,msg_timestamp)
