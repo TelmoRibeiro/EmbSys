@@ -5,8 +5,6 @@ from time              import sleep
 from random            import randint
 import socket
 import threading
-from PIL import Image
-import numpy
 
 '''
     ATTENTION:
@@ -22,18 +20,17 @@ import numpy
 
 # EVENTS # 
 SERVICE_ONLINE = threading.Event() # SERVICE ONLINE?
-RECV_BYTES    = 1024*1000000
 
 def play(service,client_socket):
     try:
         while True:
-            _,_,msg_flag,_ = decode_packet(client_socket.recv(1024))    
-            if msg_flag != "SYNC" and msg_flag != "NSYNC":
-                log_cnsl(service,f"SYNC/NSYNC expected yet {msg_flag} received!")
+            _,_,msg_content = decode_packet(client_socket.recv(1024))    
+            if msg_content != "SYNC" and msg_content != "NSYNC":
+                log_cnsl(service,f"SYNC/NSYNC expected yet {msg_content} received!")
                 SERVICE_ONLINE.clear()
                 client_socket.close()
                 return
-            if msg_flag == "NSYNC":
+            if msg_content == "NSYNC":
                 log_cnsl(service,f"received NSYNC")
                 continue
             log_cnsl(service,f"received SYNC")
@@ -43,40 +40,33 @@ def play(service,client_socket):
         log_cnsl(service,f"sending SYNC_ACK...")
         client_socket.sendall(data_encd)
     except Exception as e:
-        log_cnsl(service,f"caught: {e}")
         log_cnsl(service,f"detected DOWNTIME")
         SERVICE_ONLINE.clear()
         client_socket.close()
 
 # call this function whenever you want to send data as long as play event is set #
-def send(service,client_socket,msg_ID,msg_flag):
+def send(service,client_socket,msg_ID,msg_content):
     try:
         if not SERVICE_ONLINE.is_set():
-            log_cnsl(service,f"NO CONNECTION!")
+            log_cnsl(service+"-MAIN",f"NO CONNECTION!")
             client_socket.close()
             return
-        _,data_encd = encode_packet(msg_ID,msg_flag)
-        log_cnsl(service,f"sending {msg_flag}...")
+        _,data_encd = encode_packet(msg_ID,msg_content)
+        log_cnsl(service+"-MAIN",f"sending {msg_content}...")
         client_socket.sendall(data_encd)
     except Exception as e:
-        log_cnsl(service,f"caught: {e}")
-        log_cnsl(service,f"detected DOWNTIME")
+        log_cnsl(service+"-MAIN",f"detected DOWNTIME")
         SERVICE_ONLINE.clear()
         client_socket.close()
 
 # modify this function to pattern match and treat what you will receive #
-def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
+def recv(service,msg_ID,msg_timestamp,msg_content):
     # @ telmo - for simulation purpose I will just log it
-    match msg_flag:
+    match msg_content:
         case "SHUTDOWN":
             log_cnsl(service,f"received SHUTDOWN")
             SERVICE_ONLINE.clear()
-        case "PHOTO_E":
-            log_cnsl(service,f"received {msg_flag}")
-            print(f"pic: {len(msg_content)}")
-            image = Image.frombytes("RGB",(600,600),msg_content,"raw")
-            image.show()
-        case _: log_cnsl(service,f"received {msg_flag}")
+        case _: log_cnsl(service,f"received {msg_content}!")
 
 def client(service):
     try:
@@ -94,16 +84,13 @@ def client(service):
                 while True:
                     if not SERVICE_ONLINE.is_set():
                         return
-                    data_recv = client_socket.recv(RECV_BYTES)
+                    data_recv = client_socket.recv(1024)
                     if not data_recv:
-                        log_cnsl(service,"nothing received")
                         SERVICE_ONLINE.clear()
-                        client_socket.close()
                         break
-                    msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(data_recv)
-                    recv(service,msg_ID,msg_timestamp,msg_flag,msg_content)
+                    msg_ID,msg_timestamp,msg_content = decode_packet(data_recv)
+                    recv(service,msg_ID,msg_timestamp,msg_content)
             except Exception as e:
-                log_cnsl(service,f"caught: {e}")
                 log_cnsl(service,f"detected DOWNTIME")
                 SERVICE_ONLINE.clear()
                 client_socket.close()
@@ -128,7 +115,7 @@ def yourMainLogic(service):
         data_buff = ["OPEN_R","CLOSE_R","PHOTO_R"]
         data_flag = data_buff[randint(0,len(data_buff)-1)]
         # @ telmo - the following code you do apply
-        send(service,client_socket,msg_ID,data_flag)
+        send(service,client_socket,msg_ID,data_flag) 
         msg_ID += 1
         # THE REST OF UR CODE #
 
