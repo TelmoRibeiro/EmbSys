@@ -5,14 +5,6 @@ from time              import sleep
 import socket
 import threading
 
-'''
-    ATTENTION:
-        THERE IS A STUCK STATE BUT I AM NOT AWARE HOW TO REPLICATE IT
-        IF YOU UNCOVER BUGS
-        === HIT ME ON DMs ===
-    TelmoRibeiro
-'''
-
 # EVENTS:
 MULTIM_ONLINE = threading.Event() # MULTIM CENTER ONLINE?
 MOBILE_ONLINE = threading.Event() # MOBILE CENTER ONLINE?
@@ -25,7 +17,7 @@ def toggleOffline(service):
         case network.MULTIM_SERVER:
             MULTIM_ONLINE.clear()
         case _:
-            log_cnsl(service,f"service={service} not supported!")
+            log_cnsl(service,f"service={service} not supported")
 
 def stop(service,client_socket):
     try:
@@ -49,11 +41,11 @@ def stop(service,client_socket):
                     log_cnsl(service,"sending NSYNC...")
                     client_socket.sendall(data_encd)
             case _:
-                log_cnsl(service,f"service={service} not supported!")
+                log_cnsl(service,f"service={service} not supported")
                 toggleOffline(service)
                 client_socket.close()
     except Exception as e:
-                    log_cnsl(service,f"detected DOWNTIME")
+                    log_cnsl(service,f"detected DOWNTIME | {e}")
                     toggleOffline(service)
                     client_socket.close()
 
@@ -70,13 +62,13 @@ def play(service,client_socket):
             toggleOffline(service)
             client_socket.close()
     except Exception as e:
-        log_cnsl(service,f"detected DOWNTIME")
+        log_cnsl(service,f"detected DOWNTIME | {e}")
         toggleOffline(service)
         client_socket.close()
 
 def server(service):
-    server_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM) # tcp connection
-    SERVICE_IPV4  = network.SERVER_IPV4 
+    server_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    SERVICE_IPV4  = network.SERVER_IPV4
     SERVICE_PORT  = network.service_port(service)
     server_socket.bind((SERVICE_IPV4,SERVICE_PORT))
     server_socket.listen()
@@ -84,7 +76,7 @@ def server(service):
     try:
         while True:
             client_socket,client_address = server_socket.accept()
-            log_cnsl(service,f"connection established with {client_address}!")
+            log_cnsl(service,f"connection established with {client_address}")
             stop(service,client_socket)
             play(service,client_socket)
             try:
@@ -94,19 +86,20 @@ def server(service):
                         log_cnsl(service,f"sending SHUTDOWN...")
                         client_socket.sendall(data_encd)
                         toggleOffline(service)
-                        client_socket.close()       
+                        client_socket.close()
                         break
                     data_recv = client_socket.recv(1024)
                     if not data_recv:
+                        log_cnsl(service,f"received None")
                         toggleOffline(service)
                         client_socket.close()
                         break
                     msg_ID,msg_timestamp,msg_flag = decode_packet(data_recv)
-                    log_cnsl(service,f"received {msg_flag}!")
+                    log_cnsl(service,f"received {msg_flag}")
                     message_control_thread = threading.Thread(target=message_control,args=(service,msg_ID,msg_timestamp,msg_flag,))
                     message_control_thread.start()
             except Exception as e:
-                log_cnsl(service,f"detected DOWNTIME while receiving")
+                log_cnsl(service,f"detected DOWNTIME | {e}")
                 toggleOffline(service)
                 client_socket.close()
     except KeyboardInterrupt:
@@ -114,57 +107,57 @@ def server(service):
     finally:
         server_socket.close()
 
-def message_control(service,msg_ID,msg_timestamp,msg_flag,msg_content):
-    # @ telmo - not testing for msg_src...
+# @ telmo - not testing for source (not hard to, tho...)
+def message_control(service,msg_ID,msg_timestamp,msg_flag):
     match msg_flag:
         case FLAG if FLAG in ["OPEN_R","CLOSE_R","PHOTO_R"]:
-            try:              
+            try:
                 client_socket = MULTIM_SOCKET
-                if SENSOR_EVENT.is_set() and FLAG != "PHOTO_R":
+                if SENSOR_EVENT.is_set() and FLAG in ["OPEN_R","CLOSE_R"]:
                     SENSOR_EVENT.clear()
-                _,data_encd = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
+                _,data_encd = encode_packet(msg_ID,msg_flag,msg_timestamp)
                 log_cnsl(service,f"sending {msg_flag}...")
                 client_socket.sendall(data_encd)
             except Exception as e:
-                log_cnsl(service,"detected DOWNTIME while sending")
+                log_cnsl(service,f"detected DOWNTIME | {e}")
                 toggleOffline(service)
                 client_socket.close()
         case FLAG if FLAG in ["OPEN_E","CLOSE_E","PHOTO_E"]:
             try:
                 client_socket = MOBILE_SOCKET
-                _,data_encd = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
+                _,data_encd = encode_packet(msg_ID,msg_flag,msg_timestamp)
                 log_cnsl(service,f"sending {msg_flag}...")
                 client_socket.sendall(data_encd)
             except Exception as e:
-                log_cnsl(service,"detected DOWNTIME while sending")
+                log_cnsl(service,f"detected DOWNTIME | {e}")
                 toggleOffline(service)
                 client_socket.close()
         case FLAG if FLAG in ["SENSOR_E"]:
             try:
                 client_socket = MOBILE_SOCKET
-                _,data_encd = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
+                _,data_encd = encode_packet(msg_ID,msg_flag,msg_timestamp)
                 log_cnsl(service,f"sending {msg_flag}...")
                 client_socket.sendall(data_encd)
                 SENSOR_EVENT.set()
                 sleep(5)
-                # @ telmo - what shall happen if SENSOR_E arrives while SENSOR_E is processed?
+                # @ telmo - SENSOR_E after SENSOR_E?
                 if SENSOR_EVENT.is_set():
                     try:
                         client_socket = MULTIM_SOCKET
-                        _,data_encd = encode_packet(msg_ID,"CLOSE_R",None)
+                        _,data_encd = encode_packet(msg_ID,"CLOSE_R")
                         log_cnsl(service,f"sending CLOSE_R...")
                         client_socket.sendall(data_encd)
                     except Exception as e:
-                        log_cnsl(service,f"detected DOWNTIME while sending")
+                        log_cnsl(service,f"detected DOWNTIME | {e}")
                         toggleOffline(network.MULTIM_SERVER)
                         client_socket.close()
                 SENSOR_EVENT.clear()
             except Exception as e:
-                log_cnsl(service,"detected DOWNTIME while sending")
+                log_cnsl(service,f"detected DOWNTIME | {e}")
                 toggleOffline(network.MOBILE_SERVER)
                 client_socket.close()
         case _:
-            log_cnsl(service,f"service={msg_flag} not supported!")
+            log_cnsl(service,f"service={msg_flag} not supported")
             toggleOffline(client_socket)
             client_socket.close()
 

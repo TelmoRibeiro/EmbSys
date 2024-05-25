@@ -6,31 +6,19 @@ from random            import randint
 import socket
 import threading
 
-'''
-    ATTENTION:
-        THERE ARE PLENTY OPTIMISATIONS YOU CAN PERFORM ON THE CODE
-        THERE ARE SOME "MANDATORY" SECTIONS IN THE FOLLOWING IMPLEMENTATION THAT ARE NOT INDEED "MANDATORY"
-        MANY DESIGN CHOICES WERE MADE TO HAVE A NEET DUALITY CONCEPT BETWEEN THE CLIENT AND THE SERVER
-            IF YOU ARE INTERESTED IN OPTIMISING SOME CODE OR
-            IF YOU ARE ARE INTERESTED IN DODGING "MANDATORY" PARTS OR
-            IF YOU HAVE FEEDBACK IN WAYS I CAN IMPROVE THE CODE
-            === HIT ME ON DMs ===
-    TelmoRibeiro
-'''
-
 # EVENTS # 
 SERVICE_ONLINE = threading.Event() # SERVICE ONLINE?
 
 def play(service,client_socket):
     try:
         while True:
-            _,_,msg_content = decode_packet(client_socket.recv(1024))    
-            if msg_content != "SYNC" and msg_content != "NSYNC":
-                log_cnsl(service,f"SYNC/NSYNC expected yet {msg_content} received!")
+            _,_,msg_flag = decode_packet(client_socket.recv(1024))    
+            if msg_flag != "SYNC" and msg_flag != "NSYNC":
+                log_cnsl(service,f"SYNC/NSYNC expected yet {msg_flag} received")
                 SERVICE_ONLINE.clear()
                 client_socket.close()
                 return
-            if msg_content == "NSYNC":
+            if msg_flag == "NSYNC":
                 log_cnsl(service,f"received NSYNC")
                 continue
             log_cnsl(service,f"received SYNC")
@@ -40,33 +28,31 @@ def play(service,client_socket):
         log_cnsl(service,f"sending SYNC_ACK...")
         client_socket.sendall(data_encd)
     except Exception as e:
-        log_cnsl(service,f"detected DOWNTIME")
+        log_cnsl(service,f"detected DOWNTIME | {e}")
         SERVICE_ONLINE.clear()
         client_socket.close()
 
-# call this function whenever you want to send data as long as play event is set #
-def send(service,client_socket,msg_ID,msg_content):
+def send(service,client_socket,msg_ID,msg_flag):
     try:
         if not SERVICE_ONLINE.is_set():
-            log_cnsl(service+"-MAIN",f"NO CONNECTION!")
+            log_cnsl(service,f"sending {msg_flag}... service OFFLINE")
             client_socket.close()
             return
-        _,data_encd = encode_packet(msg_ID,msg_content)
-        log_cnsl(service+"-MAIN",f"sending {msg_content}...")
+        _,data_encd = encode_packet(msg_ID,msg_flag)
+        log_cnsl(service,f"sending {msg_flag}...")
         client_socket.sendall(data_encd)
     except Exception as e:
-        log_cnsl(service+"-MAIN",f"detected DOWNTIME")
+        log_cnsl(service,f"detected DOWNTIME | {e}")
         SERVICE_ONLINE.clear()
         client_socket.close()
 
-# modify this function to pattern match and treat what you will receive #
-def recv(service,msg_ID,msg_timestamp,msg_content):
-    # @ telmo - for simulation purpose I will just log it
-    match msg_content:
+def recv(service,msg_ID,msg_flag):
+    match msg_flag:
         case "SHUTDOWN":
-            log_cnsl(service,f"received SHUTDOWN")
+            log_cnsl(service,f"received {msg_flag}")
             SERVICE_ONLINE.clear()
-        case _: log_cnsl(service,f"received {msg_content}!")
+        case _:
+            log_cnsl(service,f"received {msg_flag}")
 
 def client(service):
     try:
@@ -75,7 +61,7 @@ def client(service):
         SERVICE_PORT  = network.service_port(service)
         try:
             client_socket.connect((SERVICE_IPV4,SERVICE_PORT))
-            log_cnsl(service,f"connection established with {SERVICE_IPV4}!")
+            log_cnsl(service,f"connection established with {SERVICE_IPV4}")
             global SERVICE_SOCKET
             SERVICE_SOCKET = client_socket
             play(service,client_socket)
@@ -83,15 +69,18 @@ def client(service):
             try:
                 while True:
                     if not SERVICE_ONLINE.is_set():
-                        return
+                        client_socket.close()
+                        break
                     data_recv = client_socket.recv(1024)
                     if not data_recv:
+                        log_cnsl(service,f"received None")
                         SERVICE_ONLINE.clear()
+                        client_socket.close()
                         break
-                    msg_ID,msg_timestamp,msg_content = decode_packet(data_recv)
-                    recv(service,msg_ID,msg_timestamp,msg_content)
+                    msg_ID,_,msg_flag = decode_packet(data_recv)
+                    recv(service,msg_ID,msg_flag)
             except Exception as e:
-                log_cnsl(service,f"detected DOWNTIME")
+                log_cnsl(service,f"detected DOWNTIME | {e}")
                 SERVICE_ONLINE.clear()
                 client_socket.close()
         except ConnectionRefusedError:
@@ -121,8 +110,8 @@ def yourMainLogic(service):
 
 def main():
     mobile_thread = threading.Thread(target=client,args=(network.MOBILE_CLIENT,))
-    mobile_thread.start()
     urmain_mobile_thread = threading.Thread(target=yourMainLogic,args=(network.MOBILE_CLIENT,))
+    mobile_thread.start()
     urmain_mobile_thread.start()
     # RUNNING THREADS #
 
