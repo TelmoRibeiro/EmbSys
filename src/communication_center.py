@@ -2,8 +2,10 @@ import utilities.network   as network
 from utilities.message import encode_packet,decode_packet
 from utilities.log     import log_cnsl
 from time              import sleep
-import socket
+
 import threading
+import socket
+import struct
 
 # EVENTS:
 MULTIM_ONLINE = threading.Event() # MULTIM CENTER ONLINE?
@@ -122,7 +124,9 @@ def message_control(service,msg_ID,msg_timestamp,msg_flag):
                 log_cnsl(service,f"detected DOWNTIME | {e}")
                 toggleOffline(service)
                 client_socket.close()
-        case FLAG if FLAG in ["OPEN_E","CLOSE_E","PHOTO_E"]:
+        case FLAG if FLAG in ["PHOTO_E"]:
+           ...
+        case FLAG if FLAG in ["OPEN_E","CLOSE_E"]:
             try:
                 client_socket = MOBILE_SOCKET
                 _,data_encd = encode_packet(msg_ID,msg_flag,msg_timestamp)

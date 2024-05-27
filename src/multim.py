@@ -1,13 +1,13 @@
 import utilities.network   as network
 from utilities.message import encode_packet,decode_packet,message_unpack # may remove this later
 from utilities.log     import log_cnsl
-import socket
-import threading
 
+import threading
+import socket
+import struct
+import serial
 # from picamera2 import Picamera2 # photos on arduino
-# import serial                   # pyserial
-import os                       # ???
-import struct                   # header fix
+import os
 from PIL import Image
 
 PHOTO_DIRECTORY = "./pics/" # TEST WITHOUT ME
@@ -69,9 +69,8 @@ def recv(service,msg_ID,msg_flag):
             _,ARDUINO_GLOBAL = encode_packet(msg_ID,msg_flag)
             ARDUINO_EVENT.set()
         case "PHOTO_R":
-            log_cnsl(service,f"received {msg_flag}")
-            # TO DO!
-        case _: 
+            ...
+        case _:
             log_cnsl(service,f"flag={msg_flag} not supported")
             SERVICE_ONLINE.clear()
 
@@ -164,6 +163,7 @@ def message_control(service,serial_socket,msg_ID,msg_timestamp,msg_flag):
             serial_socket.close()
             SERVICE_SOCKET.close() # maybe not needed
 
+'''
 def yourMainLogic(service):
     while not SERVICE_ONLINE.is_set():
         continue
@@ -182,14 +182,15 @@ def yourMainLogic(service):
         send(service,client_socket,msg_ID,data_flag) 
         msg_ID += 1
         # THE REST OF UR CODE #            
-
+'''
+        
 def main():
     multim_thread = threading.Thread(target=client,args=(network.MULTIM_CLIENT,))
-    #mouset_thread = threading.Thread(target=arduino_client,args=("ARDUINO-CLNT",))
+    mouset_thread = threading.Thread(target=arduino_client,args=("ARDUINO-CLNT",))
     multim_thread.start()
-    urmain_thread = threading.Thread(target=yourMainLogic,args=("URMAIN",))
-    urmain_thread.start()
-    #mouset_thread.start()
+    mouset_thread.start()
+    #urmain_thread = threading.Thread(target=yourMainLogic,args=("URMAIN",))
+    #urmain_thread.start()
     # RUNNING THREADS #
 
 if __name__ == "__main__": main()
