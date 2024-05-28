@@ -2,13 +2,12 @@ import utilities.network   as network
 from utilities.message import encode_packet,decode_packet,message_unpack # may remove this later
 from utilities.log     import log_cnsl
 
+# from picamera2 import Picamera2 # photos on arduino
 import threading
 import socket
 import struct
 import serial
-# from picamera2 import Picamera2 # photos on arduino
 import os
-from PIL import Image
 
 PHOTO_DIRECTORY = "./pics/" # TEST WITHOUT ME
 PHOTO_BUFF_SIZE =  5        # max #pics in buff

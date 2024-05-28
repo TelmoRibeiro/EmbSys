@@ -149,7 +149,7 @@ def message_control(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content
             sleep(5)
             # @ telmo - SENSOR_E after SENSOR_E? - think about it!
             if SENSOR_EVENT.is_set():
-                send(service,MULTIM_SOCKET,"CLOSE_R") 
+                send(service,MULTIM_SOCKET,msg_flag,"CLOSE_R") 
             SENSOR_EVENT.clear()
         case _:
             log_cnsl(service,f"service={msg_flag} not supported")
