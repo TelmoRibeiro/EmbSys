@@ -5,6 +5,7 @@ from time              import sleep
 from random            import randint
 import socket
 import threading
+import struct
 
 # EVENTS # 
 SERVICE_ONLINE = threading.Event() # SERVICE ONLINE?
@@ -40,19 +41,46 @@ def send(service,client_socket,msg_ID,msg_flag,msg_length=0,msg_content=None):
             return
         _,data_encd = encode_packet(msg_ID,msg_flag,msg_length,msg_content)
         log_cnsl(service,f"sending {msg_flag}...")
-        client_socket.sendall(data_encd)
+        packet_length = struct.pack("!I",len(data_encd)) # testing
+        client_socket.sendall(packet_length + data_encd) # testing
     except Exception as e:
         log_cnsl(service,f"detected DOWNTIME | {e}")
         SERVICE_ONLINE.clear()
         client_socket.close()
+
+def recv_all(client_socket,length):
+    data_read = bytearray()
+    while len(data_read) < length:
+        chunk = client_socket.recv(length - len(data_read))
+        if not chunk:
+            raise Exception("received nothing")
+        data_read.extend(chunk)
+    return bytes(data_read)   
 
 def recv(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content):
     match msg_flag:
         case "SHUTDOWN":
             log_cnsl(service,f"received {msg_flag}")
             SERVICE_ONLINE.clear()
-        case _:
+            SERVICE_SOCKET.close()
+        case "OPEN_E":
             log_cnsl(service,f"received {msg_flag}")
+            ...
+        case "CLOSE_E":
+            log_cnsl(service,f"received {msg_flag}")
+            ...
+        case "SENSOR_E":
+            log_cnsl(service,f"received {msg_flag}")
+            ...
+        case "PHOTO_E":
+            log_cnsl(service,f"received {msg_flag}")
+            with open("./pics/recv.jpeg","wb") as photo_file:
+                photo_file.write(bytes.fromhex(msg_content))
+            ...
+        case _:
+            log_cnsl(service,f"flag={msg_flag} not supported")
+            SERVICE_ONLINE.clear()
+            SERVICE_SOCKET.close()
 
 def client(service):
     try:
@@ -71,7 +99,9 @@ def client(service):
                     if not SERVICE_ONLINE.is_set():
                         client_socket.close()
                         break
-                    data_recv = client_socket.recv(1024)
+                    header = recv_all(client_socket,4)
+                    data_length = struct.unpack("!I",header)[0]
+                    data_recv = recv_all(client_socket,data_length)
                     if not data_recv:
                         log_cnsl(service,f"received None")
                         SERVICE_ONLINE.clear()

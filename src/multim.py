@@ -48,11 +48,21 @@ def send(service,client_socket,msg_ID,msg_flag,msg_length=0,msg_content=None):
             return
         _,data_encd = encode_packet(msg_ID,msg_flag,msg_length,msg_content)
         log_cnsl(service,f"sending {msg_flag}...")
-        client_socket.sendall(data_encd)
+        packet_length = struct.pack("!I",len(data_encd)) # testing
+        client_socket.sendall(packet_length + data_encd) # testing
     except Exception as e:
         log_cnsl(service,f"detected DOWNTIME | {e}")
         SERVICE_ONLINE.clear()
         client_socket.close()
+
+def recv_all(client_socket,length):
+    data_read = bytearray()
+    while len(data_read) < length:
+        chunk = client_socket.recv(length - len(data_read))
+        if not chunk:
+            raise Exception("received nothing")
+        data_read.extend(chunk)
+    return bytes(data_read)           
 
 def recv(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content):
     global ARDUINO_GLOBAL
@@ -70,7 +80,11 @@ def recv(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content):
             _,ARDUINO_GLOBAL = encode_packet(msg_ID,msg_flag)
             ARDUINO_EVENT.set()
         case "PHOTO_R":
-            ...
+            log_cnsl(service,f"received {msg_flag}")
+            photo_path = PHOTO_DIRECTORY + "test.jpeg"
+            with open(photo_path,"rb") as photo_file:
+                photo_data = photo_file.read()
+            send(service,SERVICE_SOCKET,msg_ID,"PHOTO_E",len(photo_data),photo_data.hex())
         case _:
             log_cnsl(service,f"flag={msg_flag} not supported")
             SERVICE_ONLINE.clear()
@@ -92,7 +106,9 @@ def client(service):
                     if not SERVICE_ONLINE.is_set():
                         client_socket.close()
                         break
-                    data_recv = client_socket.recv(1024)
+                    header = recv_all(client_socket,4)
+                    data_length = struct.unpack("!I",header)[0]
+                    data_recv = recv_all(client_socket,data_length)
                     if not data_recv:
                         log_cnsl(service,f"received None")
                         SERVICE_ONLINE.clear()
