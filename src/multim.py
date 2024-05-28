@@ -20,7 +20,7 @@ ARDUINO_EVENT  = threading.Event() # CLIENT -> ARD-CLIENT COMMS
 def play(service,client_socket):
     try:
         while True:
-            _,_,msg_flag = decode_packet(client_socket.recv(1024))    
+            _,_,msg_flag,_,_ = decode_packet(client_socket.recv(1024))    
             if msg_flag != "SYNC" and msg_flag != "NSYNC":
                 log_cnsl(service,f"SYNC/NSYNC expected yet {msg_flag} received")
                 SERVICE_ONLINE.clear()
@@ -40,13 +40,13 @@ def play(service,client_socket):
         SERVICE_ONLINE.clear()
         client_socket.close()
 
-def send(service,client_socket,msg_ID,msg_flag):
+def send(service,client_socket,msg_ID,msg_flag,msg_length=0,msg_content=None):
     try:
         if not SERVICE_ONLINE.is_set():
             log_cnsl(service,f"sending {msg_flag}... service OFFLINE")
             client_socket.close()
             return
-        _,data_encd = encode_packet(msg_ID,msg_flag)
+        _,data_encd = encode_packet(msg_ID,msg_flag,msg_length,msg_content)
         log_cnsl(service,f"sending {msg_flag}...")
         client_socket.sendall(data_encd)
     except Exception as e:
@@ -54,12 +54,13 @@ def send(service,client_socket,msg_ID,msg_flag):
         SERVICE_ONLINE.clear()
         client_socket.close()
 
-def recv(service,msg_ID,msg_flag):
+def recv(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content):
     global ARDUINO_GLOBAL
     match msg_flag:
         case "SHUTDOWN":
             log_cnsl(service,f"received {msg_flag}")
             SERVICE_ONLINE.clear()
+            SERVICE_SOCKET.close()
         case "OPEN_R":
             log_cnsl(service,f"received {msg_flag}")
             _,ARDUINO_GLOBAL = encode_packet(msg_ID,msg_flag)
@@ -97,8 +98,8 @@ def client(service):
                         SERVICE_ONLINE.clear()
                         client_socket.close()
                         break
-                    msg_ID,_,msg_flag = decode_packet(data_recv)
-                    recv(service,msg_ID,msg_flag)
+                    msg_ID,msg_timestamp,msg_flag,msg_length,msg_content = decode_packet(data_recv)
+                    recv(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content)
             except Exception as e:
                 log_cnsl(service,f"detected DOWNTIME | {e}")
                 SERVICE_ONLINE.clear()
@@ -119,41 +120,42 @@ def arduino_client(service):
             continue
         while True:
             if not SERVICE_ONLINE.is_set():
+                # log it
                 serial_socket.close()
                 break
             if serial_socket.in_waiting:
-                msg_ID,msg_timestamp,msg_flag = decode_packet(serial_socket.readline())
+                msg_ID,msg_timestamp,msg_flag,msg_length,msg_content = decode_packet(serial_socket.readline())
                 log_cnsl(service,f"received {msg_flag} from SERIAL")
-                message_control_thread = threading.Thread(target=message_control,args=(service,serial_socket,msg_ID,msg_timestamp,msg_flag,))
+                message_control_thread = threading.Thread(target=message_control,args=(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content,))
                 message_control_thread.start()
             if ARDUINO_EVENT.is_set():
-                ARDUINO_EVENT.clear() 
                 global ARDUINO_GLOBAL
-                msg_ID,msg_timestamp,msg_flag = decode_packet(ARDUINO_GLOBAL)
+                msg_ID,msg_timestamp,msg_flag,msg_length,msg_content = decode_packet(ARDUINO_GLOBAL)
+                ARDUINO_EVENT.clear()
                 log_cnsl(service,f"received {msg_flag} from WIFI")
-                message_control_thread = threading.Thread(target=message_control,args=(service,serial_socket,msg_ID,msg_timestamp,msg_flag,))
+                message_control_thread = threading.Thread(target=message_control,args=(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content,))
                 message_control_thread.start()        
     except Exception as e:
         log_cnsl(service,f"detected DOWNTIME | {e}")
         SERVICE_ONLINE.clear()
         serial_socket.close()
 
-def message_control(service,serial_socket,msg_ID,msg_timestamp,msg_flag):
+def message_control(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content):
     global ARDUINO_GLOBAL
     match msg_flag:
         case "SENSOR_E":
-            send(service,SERVICE_SOCKET,msg_ID,msg_flag)
+            send(service,SERVICE_SOCKET,msg_ID,msg_flag,msg_length,msg_content)
         case "OPEN_E":
-            send(service,SERVICE_SOCKET,msg_ID,msg_flag)
+            send(service,SERVICE_SOCKET,msg_ID,msg_flag,msg_length,msg_content)
         case "CLOSE_E":  
-            send(service,SERVICE_SOCKET,msg_ID,msg_flag)
+            send(service,SERVICE_SOCKET,msg_ID,msg_flag,msg_length,msg_content)
         case "OPEN_R":
-            _,data_encd = encode_packet(msg_ID,msg_flag,msg_timestamp)
+            _,data_encd = encode_packet(msg_ID,msg_flag,msg_timestamp,msg_length,msg_content)
             serial_socket.write(data_encd)
             ARDUINO_GLOBAL = None
             ARDUINO_EVENT.clear()
         case "CLOSE_R":
-            _,data_encd = encode_packet(msg_ID,msg_flag,msg_timestamp)
+            _,data_encd = encode_packet(msg_ID,msg_flag,msg_timestamp,msg_length,msg_content)
             serial_socket.write(data_encd)
             ARDUINO_GLOBAL = None
             ARDUINO_EVENT.clear()

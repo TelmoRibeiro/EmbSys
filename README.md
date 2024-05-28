@@ -3,7 +3,8 @@
 ## Known Bugs
 - there is a stuck state on the Communication Center endpoint (occurrences:Low | replicate:Hard)
 - after some time multim.py eventually dies with Input/Output error (occurrences:High | replicate: High)
-- after enough time, number holding variables will break (prediction) 
+- after enough time, number holding variables will break (prediction)
+- timeout will be needed (prediction)
 
 ## To Do
 1) add photo support - DOING

@@ -12,7 +12,7 @@ SERVICE_ONLINE = threading.Event() # SERVICE ONLINE?
 def play(service,client_socket):
     try:
         while True:
-            _,_,msg_flag = decode_packet(client_socket.recv(1024))    
+            _,_,msg_flag,_,_ = decode_packet(client_socket.recv(1024))    
             if msg_flag != "SYNC" and msg_flag != "NSYNC":
                 log_cnsl(service,f"SYNC/NSYNC expected yet {msg_flag} received")
                 SERVICE_ONLINE.clear()
@@ -32,13 +32,13 @@ def play(service,client_socket):
         SERVICE_ONLINE.clear()
         client_socket.close()
 
-def send(service,client_socket,msg_ID,msg_flag):
+def send(service,client_socket,msg_ID,msg_flag,msg_length=0,msg_content=None):
     try:
         if not SERVICE_ONLINE.is_set():
             log_cnsl(service,f"sending {msg_flag}... service OFFLINE")
             client_socket.close()
             return
-        _,data_encd = encode_packet(msg_ID,msg_flag)
+        _,data_encd = encode_packet(msg_ID,msg_flag,msg_length,msg_content)
         log_cnsl(service,f"sending {msg_flag}...")
         client_socket.sendall(data_encd)
     except Exception as e:
@@ -46,7 +46,7 @@ def send(service,client_socket,msg_ID,msg_flag):
         SERVICE_ONLINE.clear()
         client_socket.close()
 
-def recv(service,msg_ID,msg_flag):
+def recv(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content):
     match msg_flag:
         case "SHUTDOWN":
             log_cnsl(service,f"received {msg_flag}")
@@ -77,8 +77,8 @@ def client(service):
                         SERVICE_ONLINE.clear()
                         client_socket.close()
                         break
-                    msg_ID,_,msg_flag = decode_packet(data_recv)
-                    recv(service,msg_ID,msg_flag)
+                    msg_ID,msg_timestamp,msg_flag,msg_length,msg_content = decode_packet(data_recv)
+                    recv(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content)
             except Exception as e:
                 log_cnsl(service,f"detected DOWNTIME | {e}")
                 SERVICE_ONLINE.clear()

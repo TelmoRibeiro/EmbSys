@@ -57,7 +57,7 @@ def play(service,client_socket):
         log_cnsl(service,"sending SYNC...")
         client_socket.sendall(data_encd) 
         ##########
-        _,_,msg_flag = decode_packet(client_socket.recv(1024))
+        _,_,msg_flag,_,_ = decode_packet(client_socket.recv(1024))
         log_cnsl(service,"received SYNC_ACK!")
         if msg_flag != "SYNC_ACK":
             log_cnsl(service,f"SYNC_ACK expected yet {msg_flag} received")
@@ -96,9 +96,9 @@ def server(service):
                         toggleOffline(service)
                         client_socket.close()
                         break
-                    msg_ID,msg_timestamp,msg_flag = decode_packet(data_recv)
+                    msg_ID,msg_timestamp,msg_flag,msg_length,msg_content = decode_packet(data_recv)
                     log_cnsl(service,f"received {msg_flag}")
-                    message_control_thread = threading.Thread(target=message_control,args=(service,msg_ID,msg_timestamp,msg_flag,))
+                    message_control_thread = threading.Thread(target=message_control,args=(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content,))
                     message_control_thread.start()
             except Exception as e:
                 log_cnsl(service,f"detected DOWNTIME | {e}")
@@ -110,14 +110,14 @@ def server(service):
         server_socket.close()
 
 # @ telmo - not testing for source (not hard to, tho...)
-def message_control(service,msg_ID,msg_timestamp,msg_flag):
+def message_control(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content):
     match msg_flag:
         case FLAG if FLAG in ["OPEN_R","CLOSE_R","PHOTO_R"]:
             try:
                 client_socket = MULTIM_SOCKET
                 if SENSOR_EVENT.is_set() and FLAG in ["OPEN_R","CLOSE_R"]:
                     SENSOR_EVENT.clear()
-                _,data_encd = encode_packet(msg_ID,msg_flag,msg_timestamp)
+                _,data_encd = encode_packet(msg_ID,msg_flag,msg_length,msg_content,msg_timestamp)
                 log_cnsl(service,f"sending {msg_flag}...")
                 client_socket.sendall(data_encd)
             except Exception as e:
@@ -129,7 +129,7 @@ def message_control(service,msg_ID,msg_timestamp,msg_flag):
         case FLAG if FLAG in ["OPEN_E","CLOSE_E"]:
             try:
                 client_socket = MOBILE_SOCKET
-                _,data_encd = encode_packet(msg_ID,msg_flag,msg_timestamp)
+                _,data_encd = encode_packet(msg_ID,msg_flag,msg_length,msg_content,msg_timestamp)
                 log_cnsl(service,f"sending {msg_flag}...")
                 client_socket.sendall(data_encd)
             except Exception as e:
@@ -139,12 +139,12 @@ def message_control(service,msg_ID,msg_timestamp,msg_flag):
         case FLAG if FLAG in ["SENSOR_E"]:
             try:
                 client_socket = MOBILE_SOCKET
-                _,data_encd = encode_packet(msg_ID,msg_flag,msg_timestamp)
+                _,data_encd = encode_packet(msg_ID,msg_flag,msg_length,msg_content,msg_timestamp)
                 log_cnsl(service,f"sending {msg_flag}...")
                 client_socket.sendall(data_encd)
                 SENSOR_EVENT.set()
                 sleep(5)
-                # @ telmo - SENSOR_E after SENSOR_E?
+                # @ telmo - SENSOR_E after SENSOR_E? - think about it!
                 if SENSOR_EVENT.is_set():
                     try:
                         client_socket = MULTIM_SOCKET
