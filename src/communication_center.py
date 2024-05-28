@@ -144,7 +144,8 @@ def message_control(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content
         case FLAG if FLAG in ["OPEN_E","CLOSE_E"]:
             send(service,MOBILE_SOCKET,msg_ID,msg_flag,msg_length,msg_content)
         case FLAG if FLAG in ["SENSOR_E"]:
-            send(service,MOBILE_SOCKET,msg_ID,msg_flag,msg_length,msg_content)    
+            send(service,MOBILE_SOCKET,msg_ID,msg_flag,msg_length,msg_content)
+            send(service,MULTIM_SOCKET,msg_ID,"PHOTO_R")
             SENSOR_EVENT.set()
             sleep(5)
             # @ telmo - SENSOR_E after SENSOR_E? - think about it!
