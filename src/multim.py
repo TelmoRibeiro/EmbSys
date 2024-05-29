@@ -1,18 +1,14 @@
 import utilities.network   as network
-from utilities.message import encode_packet,decode_packet
-from utilities.log     import log
-
-from picamera2 import Picamera2 # photo handler (linux)
+import utilities.directory as directory
+from utilities.message     import encode_packet,decode_packet
+from utilities.log         import log
 
 import threading
 import socket
 import struct
-import serial
-
-from time import sleep
-
-# GLOBALS #
-PHOTO_DIRECTORY = "./pics/"
+import serial  # enables communication with arduino 
+from time      import sleep
+from picamera2 import Picamera2 # photo handler (linux)
 
 # EVENTS #
 SERVICE_ONLINE = threading.Event() # service status
@@ -21,29 +17,33 @@ ARDUINO_EVENT  = threading.Event() # communication client -> arduino_client
 def play(service):
     # handshake that unjams this endpoint
     # used to sync all endpoints
-    service += "-HS"
-    while True:
-        data_recv = SERVICE_SOCKET.recv(1024)
-        if not data_recv:
-            log(service,f"received nothing")
-            SERVICE_SOCKET.close()
-            return False
-        _,_,msg_flag,_ = decode_packet(data_recv)
-        match msg_flag:
-            case SYNC if SYNC in ["SYNC"]:
-                log(service,"received SYNC")
-                _,data_encd = encode_packet(0,"SYNC_ACK")
-                log(service,"sending SYNC_ACK...")
-                SERVICE_SOCKET.sendall(data_encd)
-                return True
-            case NSYNC if NSYNC in ["NSYNC"]:
-                log(service,"received NSYNC")
-                continue
-            case _:
-                log(service,f"SYNC/NSYNC expected yet {msg_flag} received")
-                SERVICE_ONLINE.clear()
-                SERVICE_SOCKET.close()
-                return False
+    try:
+        service += "-HS"
+        while True:
+            data_recv = SERVICE_SOCKET.recv(1024)
+            if not data_recv:
+                raise Exception("received nothing")
+            _,_,msg_flag,_ = decode_packet(data_recv)
+            match msg_flag:
+                case SYNC if SYNC in ["SYNC"]:
+                    log(service,"received SYNC")
+                    _,data_encd = encode_packet(0,"SYNC_ACK")
+                    log(service,"sending SYNC_ACK...")
+                    SERVICE_SOCKET.sendall(data_encd)
+                    return True
+                case NSYNC if NSYNC in ["NSYNC"]:
+                    log(service,"received NSYNC")
+                    continue
+                case _:
+                    log(service,f"SYNC/NSYNC expected yet {msg_flag} received")
+                    SERVICE_ONLINE.clear()
+                    SERVICE_SOCKET.close()
+                    return False
+    except Exception as e:
+        log(service,f"detected DOWNTIME | caught {e}")
+        SERVICE_ONLINE.clear()
+        SERVICE_SOCKET.close()
+        return False
 
 def send(service,msg_ID,msg_flag,msg_content=None):
     try:
@@ -93,7 +93,7 @@ def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
             _,ARDUINO_GLOBAL = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
             ARDUINO_EVENT.set()
         case "PHOTO_R":
-            photo_path = PHOTO_DIRECTORY + "send.png"
+            photo_path = directory.PHOTO_DIR + "send.png"
             with open(photo_path,"rb") as photo_file:
                 photo_data = photo_file.read()
             send(service,msg_ID,"PHOTO_E",photo_data.hex())
@@ -168,7 +168,6 @@ def arduino_client(service):
         log(service,f"detected DOWNTIME | {e}")
         SERVICE_ONLINE.clear()
         SERVICE_SOCKET.close()
-        serial_socket.close()
 
 def message_control(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_content):
     match msg_flag:
@@ -188,7 +187,7 @@ def photo_control():
     cam.configure(cam.create_still_configuration(main={"format": "XRGB8888","size":(720,480)}))
     cam.start()
     while True:
-        photo_path = PHOTO_DIRECTORY + "send.png"
+        photo_path = directory.PHOTO_DIR + "send.png"
         cam.capture_file(photo_path) # default delay = 1 sec
         sleep(1)
 

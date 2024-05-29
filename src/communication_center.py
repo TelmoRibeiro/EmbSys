@@ -1,11 +1,11 @@
-import utilities.network   as network
-from utilities.message import encode_packet,decode_packet
-from utilities.log     import log
-from time              import sleep
+import utilities.network as network
+from utilities.message   import encode_packet,decode_packet
+from utilities.log       import log
 
 import threading
 import socket
 import struct
+from time import sleep
 
 # EVENTS:
 MULTIM_ONLINE = threading.Event() # multim center status
@@ -13,6 +13,7 @@ MOBILE_ONLINE = threading.Event() # mobile center status
 SENSOR_EVENT  = threading.Event() # sensor smart processing
 
 def toggleOffline(service):
+    # changes service status to OFFLINE
     match service:
         case network.MOBILE_SERVER:
             MOBILE_ONLINE.clear()
@@ -22,6 +23,7 @@ def toggleOffline(service):
             log(service,f"service={service} not supported")
 
 def stop(service,client_socket):
+    # jams everyone until all endpoints are online
     try:
         match service:
             case MOBILE_SERVER if MOBILE_SERVER == network.MOBILE_SERVER:
