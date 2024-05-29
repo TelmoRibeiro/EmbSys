@@ -1,6 +1,6 @@
 # NETWORKING IP/PORTS #
-#SERVER_IPV4 = ""           # change me
-SERVER_IPV4 = "127.0.0.1"   # communication center's IPV4
+SERVER_IPV4 = "192.168.58.166"           # change me
+#SERVER_IPV4 = "127.0.0.1"   # communication center's IPV4
 MOBILE_PORT = 2501          # Mobile     controller service port
 MULTIM_PORT = 2502          # Multimedia controller service port
 MOUSET_PORT = 2503          # Mouse-Trap controller service port

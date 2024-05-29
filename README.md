@@ -6,6 +6,7 @@
 - after enough time, number holding variables will break (prediction)
 
 ## Minor To Do
+- erase msg_len
 - argument IPV4
 - check handshake
 - check try catch

@@ -97,6 +97,11 @@ def client(service):
                     SERVICE_SOCKET.close()
                     return
                 header = recv_all(service,4)
+                if not header:
+                    log_cnsl(service,f"received None")
+                    SERVICE_ONLINE.clear()
+                    SERVICE_SOCKET.close()
+                    return
                 length = struct.unpack("!I",header)[0]
                 data_recv = recv_all(service,length)
                 if not data_recv:

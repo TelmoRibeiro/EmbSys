@@ -114,13 +114,18 @@ def server(service):
                     client_socket.close()
                     break
                 header = recv_all(service,client_socket,4)
+                if not header:
+                    log_cnsl(service,f"received None")
+                    toggleOffline(service)
+                    client_socket.close()
+                    continue
                 length = struct.unpack("!I",header)[0]
                 data_recv = recv_all(service,client_socket,length)
                 if not data_recv:
                     log_cnsl(service,f"received None")
                     toggleOffline(service)
                     client_socket.close()
-                    break
+                    continue
                 msg_ID,msg_timestamp,msg_flag,msg_length,msg_content = decode_packet(data_recv)
                 log_cnsl(service,f"received {msg_flag}")
                 message_control_thread = threading.Thread(target=message_control,args=(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content,))
