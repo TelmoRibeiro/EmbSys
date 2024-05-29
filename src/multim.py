@@ -17,7 +17,7 @@ ARDUINO_EVENT  = threading.Event() # CLIENT -> ARD-CLIENT COMMS
 
 def play(service):
     while True:
-        _,_,msg_flag,_,_ = decode_packet(SERVICE_SOCKET.recv(1024))
+        _,_,msg_flag,_ = decode_packet(SERVICE_SOCKET.recv(1024)) # not testing if none
         match msg_flag:
             case SYNC if SYNC in ["SYNC"]:
                 log_cnsl(service,"received SYNC")
@@ -34,13 +34,13 @@ def play(service):
                 SERVICE_SOCKET.close()
                 return
 
-def send(service,msg_ID,msg_flag,msg_length=0,msg_content=None):
+def send(service,msg_ID,msg_flag,msg_content=None):
     try:
         if not SERVICE_ONLINE.is_set():
             log_cnsl(service,f"sending {msg_flag}... service OFFLINE")
             SERVICE_SOCKET.close()
             return
-        _,data_encd = encode_packet(msg_ID,msg_flag,msg_length,msg_content)
+        _,data_encd = encode_packet(msg_ID,msg_flag,msg_content)
         log_cnsl(service,f"sending {msg_flag}...")
         length = struct.pack("!I",len(data_encd))
         SERVICE_SOCKET.sendall(length + data_encd)
@@ -63,23 +63,23 @@ def recv_all(service,length):
         SERVICE_ONLINE.clear()
         SERVICE_SOCKET.close()
 
-def recv(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content):
+def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
     global ARDUINO_GLOBAL
     match msg_flag:
         case "SHUTDOWN":
             SERVICE_ONLINE.clear()
             SERVICE_SOCKET.close()
         case "OPEN_R":
-            _,ARDUINO_GLOBAL = encode_packet(msg_ID,msg_flag,msg_length,msg_content,msg_timestamp)
+            _,ARDUINO_GLOBAL = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
             ARDUINO_EVENT.set()
         case "CLOSE_R":
-            _,ARDUINO_GLOBAL = encode_packet(msg_ID,msg_flag,msg_length,msg_content,msg_timestamp)
+            _,ARDUINO_GLOBAL = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
             ARDUINO_EVENT.set()
         case "PHOTO_R":
             photo_path = PHOTO_DIRECTORY + "test.jpeg"
             with open(photo_path,"rb") as photo_file:
                 photo_data = photo_file.read()
-            send(service,msg_ID,"PHOTO_E",len(photo_data),photo_data.hex())
+            send(service,msg_ID,"PHOTO_E",photo_data.hex())
         case _:
             log_cnsl(service,f"flag={msg_flag} not supported")
             SERVICE_ONLINE.clear()
@@ -114,9 +114,9 @@ def client(service):
                     SERVICE_ONLINE.clear()
                     SERVICE_SOCKET.close()
                     return
-                msg_ID,msg_timestamp,msg_flag,msg_length,msg_content = decode_packet(data_recv)
+                msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(data_recv)
                 log_cnsl(service,f"received {msg_flag}")
-                recv(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content)
+                recv(service,msg_ID,msg_timestamp,msg_flag,msg_content)
         except ConnectionRefusedError:
             log_cnsl(service,f"connection with {SERVICE_IPV4} refused")
             SERVICE_ONLINE.clear()
@@ -136,16 +136,16 @@ def arduino_client(service):
                 serial_socket.close()
                 return
             if serial_socket.in_waiting:
-                msg_ID,msg_timestamp,msg_flag,msg_length,msg_content = decode_packet(serial_socket.readline())
+                msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(serial_socket.readline())
                 log_cnsl(service,f"received {msg_flag} from SERIAL")
-                message_control_thread = threading.Thread(target=message_control,args=(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content,))
+                message_control_thread = threading.Thread(target=message_control,args=(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_content,))
                 message_control_thread.start()
             if ARDUINO_EVENT.is_set():
                 # global ARDUINO_GLOBAL
-                msg_ID,msg_timestamp,msg_flag,msg_length,msg_content = decode_packet(ARDUINO_GLOBAL)
+                msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(ARDUINO_GLOBAL)
                 ARDUINO_EVENT.clear()
                 log_cnsl(service,f"received {msg_flag} from WIFI")
-                message_control_thread = threading.Thread(target=message_control,args=(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content,))
+                message_control_thread = threading.Thread(target=message_control,args=(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_content,))
                 message_control_thread.start()        
     except Exception as e:
         log_cnsl(service,f"detected DOWNTIME | {e}")
@@ -153,12 +153,12 @@ def arduino_client(service):
         SERVICE_SOCKET.close()
         serial_socket.close()
 
-def message_control(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content):
+def message_control(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_content):
     match msg_flag:
         case EVENT if EVENT in ["OPEN_E","CLOSE_E","SENSOR_E"]:
-            send(service,msg_ID,msg_flag,msg_length,msg_content)
+            send(service,msg_ID,msg_flag,msg_content)
         case REQUEST if REQUEST in ["OPEN_R","CLOSE_R"]:
-            _,data_encd = encode_packet(msg_ID,msg_flag,msg_timestamp,msg_length,msg_content)
+            _,data_encd = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
             serial_socket.write(data_encd)
         case _:
             log_cnsl(service,f"flag={msg_flag} not supported")

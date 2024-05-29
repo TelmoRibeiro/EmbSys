@@ -57,7 +57,7 @@ def play(service,client_socket):
         log_cnsl(service,"sending SYNC...")
         client_socket.sendall(data_encd)
         ##########
-        _,_,msg_flag,_,_ = decode_packet(client_socket.recv(1024))
+        _,_,msg_flag,_ = decode_packet(client_socket.recv(1024))
         log_cnsl(service,f"received {msg_flag}")
         if msg_flag != "SYNC_ACK":
             log_cnsl(service,f"SYNC_ACK expected yet {msg_flag} received")
@@ -68,9 +68,9 @@ def play(service,client_socket):
         toggleOffline(service)
         client_socket.close()
 
-def send(service,client_socket,msg_ID,msg_flag,msg_length=0,msg_content=None):
+def send(service,client_socket,msg_ID,msg_flag,msg_content=None):
     try:
-        _,data_encd = encode_packet(msg_ID,msg_flag,msg_length,msg_content)
+        _,data_encd = encode_packet(msg_ID,msg_flag,msg_content)
         log_cnsl(service,f"sending {msg_flag}...")
         length = struct.pack("!I",len(data_encd))
         client_socket.sendall(length + data_encd)
@@ -126,9 +126,9 @@ def server(service):
                     toggleOffline(service)
                     client_socket.close()
                     continue
-                msg_ID,msg_timestamp,msg_flag,msg_length,msg_content = decode_packet(data_recv)
+                msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(data_recv)
                 log_cnsl(service,f"received {msg_flag}")
-                message_control_thread = threading.Thread(target=message_control,args=(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content,))
+                message_control_thread = threading.Thread(target=message_control,args=(service,msg_ID,msg_timestamp,msg_flag,msg_content,))
                 message_control_thread.start()
     except KeyboardInterrupt:
         log_cnsl(service,"shutting down...")
@@ -136,17 +136,17 @@ def server(service):
         server_socket.close()
 
 # @ telmo - not testing for source (not hard to, tho...)
-def message_control(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content):
+def message_control(service,msg_ID,msg_timestamp,msg_flag,msg_content):
     match msg_flag:
         case FLAG if FLAG in ["OPEN_R","CLOSE_R"]:
             SENSOR_EVENT.clear()
-            send(service,MULTIM_SOCKET,msg_ID,msg_flag,msg_length,msg_content)
+            send(service,MULTIM_SOCKET,msg_ID,msg_flag,msg_content)
         case FLAG if FLAG in ["PHOTO_R"]:
-            send(service,MULTIM_SOCKET,msg_ID,msg_flag,msg_length,msg_content)
+            send(service,MULTIM_SOCKET,msg_ID,msg_flag,msg_content)
         case FLAG if FLAG in ["OPEN_E","CLOSE_E","PHOTO_E"]:
-            send(service,MOBILE_SOCKET,msg_ID,msg_flag,msg_length,msg_content)
+            send(service,MOBILE_SOCKET,msg_ID,msg_flag,msg_content)
         case FLAG if FLAG in ["SENSOR_E"]: # @ telmo - SENSOR_E after SENSOR_E?
-            send(service,MOBILE_SOCKET,msg_ID,msg_flag,msg_length,msg_content)
+            send(service,MOBILE_SOCKET,msg_ID,msg_flag,msg_content)
             send(service,MULTIM_SOCKET,msg_ID,"PHOTO_R")
             SENSOR_EVENT.set()
             sleep(5)

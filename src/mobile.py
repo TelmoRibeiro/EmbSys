@@ -14,7 +14,7 @@ SERVICE_ONLINE = threading.Event() # SERVICE ONLINE?
 
 def play(service):
     while True:
-        _,_,msg_flag,_,_ = decode_packet(SERVICE_SOCKET.recv(1024))    
+        _,_,msg_flag,_ = decode_packet(SERVICE_SOCKET.recv(1024)) # not testing if none  
         match msg_flag:
             case SYNC if SYNC in ["SYNC"]:
                 log_cnsl(service,"received SYNC")
@@ -31,13 +31,13 @@ def play(service):
                 SERVICE_SOCKET.close()
                 return
     
-def send(service,msg_ID,msg_flag,msg_length=0,msg_content=None):
+def send(service,msg_ID,msg_flag,msg_content=None):
     try:
         if not SERVICE_ONLINE.is_set():
             log_cnsl(service,f"sending {msg_flag}... service OFFLINE")
             SERVICE_SOCKET.close()
             return
-        _,data_encd = encode_packet(msg_ID,msg_flag,msg_length,msg_content)
+        _,data_encd = encode_packet(msg_ID,msg_flag,msg_content)
         log_cnsl(service,f"sending {msg_flag}...")
         length = struct.pack("!I",len(data_encd))
         SERVICE_SOCKET.sendall(length + data_encd)
@@ -60,7 +60,7 @@ def recv_all(service,length):
         SERVICE_ONLINE.clear()
         SERVICE_SOCKET.close()
 
-def recv(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content):
+def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
     match msg_flag:
         case "SHUTDOWN":
             SERVICE_ONLINE.clear()
@@ -109,9 +109,9 @@ def client(service):
                     SERVICE_ONLINE.clear()
                     SERVICE_SOCKET.close()
                     return
-                msg_ID,msg_timestamp,msg_flag,msg_length,msg_content = decode_packet(data_recv)
+                msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(data_recv)
                 log_cnsl(service,f"received {msg_flag}")
-                recv(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content)
+                recv(service,msg_ID,msg_timestamp,msg_flag,msg_content)
         except ConnectionRefusedError:
             log_cnsl(service,f"connection with {SERVICE_IPV4} refused")
             SERVICE_ONLINE.clear()

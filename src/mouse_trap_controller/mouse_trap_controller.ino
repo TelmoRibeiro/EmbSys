@@ -36,13 +36,13 @@ void loop() {
   delay(100);
 
   if (toSendFlag != "NULL") {
-    String message = String(messageID) + "@" + String(messageTS) + "@" + toSendFlag + "@" + "0" + "@" + "None" + "@";
+    String message = String(messageID) + "@" + String(messageTS) + "@" + toSendFlag + "@" + "None" + "@";
     Serial.println(message);
     messageID++;
     toSendFlag = "NULL";
   }
   else if (currentDistance <= SensorDistance && freshValue && doorStatus == "OPEN") {
-    String message = String(messageID) + "@" + String(messageTS) + "@" + "SENSOR_E" + "@" + "0" + "@" + "None" + "@";
+    String message = String(messageID) + "@" + String(messageTS) + "@" + "SENSOR_E" + "@" + "None" + "@";
     Serial.println(message);
     messageID++;
     freshValue = false;
@@ -58,7 +58,6 @@ void loop() {
     int pos3 = message.indexOf('@', pos2 + 1);
     int pos4 = message.indexOf('@', pos3 + 1);
     int pos5 = message.indexOf('@', pos4 + 1);
-    int pos6 = message.indexOf('@', pos5 + 1);
     String flag = message.substring(pos3 + 1, pos4);
     // @ telmo - CRISTINA code block ends //
     if (flag == "OPEN_R" && doorStatus == "CLOSE") {
