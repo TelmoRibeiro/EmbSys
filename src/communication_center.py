@@ -32,18 +32,16 @@ def stop(service,client_socket):
                 MOBILE_ONLINE.set()
                 while not MULTIM_ONLINE.is_set():
                     sleep(1)
-                    _,data_encd = encode_packet(0,"NSYNC")
                     log(service,"sending NSYNC...")
-                    MOBILE_SOCKET.sendall(data_encd)
+                    send(service,MOBILE_SOCKET,0,"NSYNC")
             case MULTIM_SERVER if MULTIM_SERVER == network.MULTIM_SERVER:
                 global MULTIM_SOCKET
                 MULTIM_SOCKET = client_socket
                 MULTIM_ONLINE.set()
                 while not MOBILE_ONLINE.is_set():
                     sleep(1)
-                    _,data_encd = encode_packet(0,"NSYNC")
                     log(service,"sending NSYNC...")
-                    MULTIM_SOCKET.sendall(data_encd)
+                    send(service,MULTIM_SOCKET,0,"NSYNC")
             case _:
                 log(service,f"service={service} not supported")
                 log(service,f"cannot close socket from local view")
@@ -56,25 +54,23 @@ def stop(service,client_socket):
         return False
 
 def play(service,client_socket):
-    service += "-HS"
+    # handshake that unjams this endpoint
+    # used to sync all endpoints
     try:
-        _,data_encd = encode_packet(0,"SYNC")
         log(service,"sending SYNC...")
-        client_socket.sendall(data_encd)
+        send(service,client_socket,0,"SYNC")
         ##########
-        data_recv = client_socket.recv(1024)
+        header = recv_all(service,client_socket,4)
+        if not header:
+            raise Exception("received nothing [header]")
+        length = struct.unpack("!I",header)[0]
+        data_recv = recv_all(service,client_socket,length)
         if not data_recv:
-            log(service,f"received nothing")
-            toggleOffline(service)
-            client_socket.close()
-            return False
+            raise Exception("received nothing [body]")
         _,_,msg_flag,_ = decode_packet(data_recv)
         log(service,f"received {msg_flag}")
         if msg_flag != "SYNC_ACK":
-            log(service,f"SYNC_ACK expected yet {msg_flag} received")
-            toggleOffline(service)
-            client_socket.close()
-            return False
+            raise Exception(f"SYNC_ACK expected yet {msg_flag} received")
         return True
     except Exception as e:
         log(service,f"detected DOWNTIME | caught {e}")

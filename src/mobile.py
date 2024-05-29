@@ -16,27 +16,26 @@ def play(service):
     # handshake that unjams this endpoint
     # used to sync all endpoints
     try:
-        service += "-HS"
         while True:
-            data_recv = SERVICE_SOCKET.recv(1024)
+            header = recv_all(service,4)
+            if not header:
+                raise Exception("received nothing [header]")
+            length = struct.unpack("!I",header)[0]
+            data_recv = recv_all(service,length)
             if not data_recv:
-                raise Exception("received nothing")
+                raise Exception("received nothing [body]")
             _,_,msg_flag,_ = decode_packet(data_recv)
             match msg_flag:
                 case SYNC if SYNC in ["SYNC"]:
                     log(service,"received SYNC")
-                    _,data_encd = encode_packet(0,"SYNC_ACK")
                     log(service,"sending SYNC_ACK...")
-                    SERVICE_SOCKET.sendall(data_encd)
+                    send(service,0,"SYNC_ACK")
                     return True
                 case NSYNC if NSYNC in ["NSYNC"]:
                     log(service,"received NSYNC")
                     continue
                 case _:
-                    log(service,f"SYNC/NSYNC expected yet {msg_flag} received")
-                    SERVICE_ONLINE.clear()
-                    SERVICE_SOCKET.close()
-                    return False
+                    raise Exception(f"SYNC/NSYNC expected yet {msg_flag} received")
     except Exception as e:
         log(service,f"detected DOWNTIME | caught {e}")
         SERVICE_ONLINE.clear()
@@ -108,9 +107,9 @@ def client(service):
             client_socket.connect((SERVICE_IPV4,SERVICE_PORT))
             global SERVICE_SOCKET
             SERVICE_SOCKET = client_socket
+            SERVICE_ONLINE.set()
             log(service,f"connection established with {SERVICE_IPV4}")
             play(service)
-            SERVICE_ONLINE.set()
             while True:
                 if not SERVICE_ONLINE.is_set():
                     log(service,f"detected DOWNTIME - service OFFLINE")
