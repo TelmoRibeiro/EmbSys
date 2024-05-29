@@ -1,79 +1,77 @@
 import utilities.network   as network
 from utilities.message import encode_packet,decode_packet
 from utilities.log     import log_cnsl
-from time              import sleep
-from random            import randint
-import socket
+
 import threading
+import socket
 import struct
+
+from random            import randint
+from time              import sleep
 
 # EVENTS # 
 SERVICE_ONLINE = threading.Event() # SERVICE ONLINE?
 
-def play(service,client_socket):
-    try:
-        while True:
-            _,_,msg_flag,_,_ = decode_packet(client_socket.recv(1024))    
-            if msg_flag != "SYNC" and msg_flag != "NSYNC":
+def play(service):
+    while True:
+        _,_,msg_flag,_,_ = decode_packet(SERVICE_SOCKET.recv(1024))    
+        match msg_flag:
+            case SYNC if SYNC in ["SYNC"]:
+                log_cnsl(service,"received SYNC")
+                _,data_encd = encode_packet(0,"SYNC_ACK")
+                log_cnsl(service,"sending SYNC_ACK...")
+                SERVICE_SOCKET.sendall(data_encd)
+                return
+            case NSYNC if NSYNC in ["NSYNC"]:
+                log_cnsl(service,"received NSYNC")
+                continue
+            case _:
                 log_cnsl(service,f"SYNC/NSYNC expected yet {msg_flag} received")
                 SERVICE_ONLINE.clear()
-                client_socket.close()
+                SERVICE_SOCKET.close()
                 return
-            if msg_flag == "NSYNC":
-                log_cnsl(service,f"received NSYNC")
-                continue
-            log_cnsl(service,f"received SYNC")
-            break
-        ##########
-        _,data_encd = encode_packet(0,"SYNC_ACK")
-        log_cnsl(service,f"sending SYNC_ACK...")
-        client_socket.sendall(data_encd)
-    except Exception as e:
-        log_cnsl(service,f"detected DOWNTIME | {e}")
-        SERVICE_ONLINE.clear()
-        client_socket.close()
-
-def send(service,client_socket,msg_ID,msg_flag,msg_length=0,msg_content=None):
+    
+def send(service,msg_ID,msg_flag,msg_length=0,msg_content=None):
     try:
         if not SERVICE_ONLINE.is_set():
             log_cnsl(service,f"sending {msg_flag}... service OFFLINE")
-            client_socket.close()
+            SERVICE_SOCKET.close()
             return
         _,data_encd = encode_packet(msg_ID,msg_flag,msg_length,msg_content)
         log_cnsl(service,f"sending {msg_flag}...")
-        packet_length = struct.pack("!I",len(data_encd)) # testing
-        client_socket.sendall(packet_length + data_encd) # testing
+        length = struct.pack("!I",len(data_encd))
+        SERVICE_SOCKET.sendall(length + data_encd)
     except Exception as e:
         log_cnsl(service,f"detected DOWNTIME | {e}")
         SERVICE_ONLINE.clear()
-        client_socket.close()
+        SERVICE_SOCKET.close()
 
-def recv_all(client_socket,length):
-    data_read = bytearray()
-    while len(data_read) < length:
-        chunk = client_socket.recv(length - len(data_read))
-        if not chunk:
-            raise Exception("received nothing")
-        data_read.extend(chunk)
-    return bytes(data_read)   
+def recv_all(service,length):
+    try:
+        data_read = bytearray()
+        while len(data_read) < length:
+            chunk = SERVICE_SOCKET.recv(length - len(data_read))
+            if not chunk:
+                raise Exception("received nothing")
+            data_read.extend(chunk)
+        return bytes(data_read)
+    except Exception as e:
+        log_cnsl(service,f"DETECTED DOWNTIME | caught {e}")
+        SERVICE_ONLINE.clear()
+        SERVICE_SOCKET.close()
 
 def recv(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content):
     match msg_flag:
         case "SHUTDOWN":
-            log_cnsl(service,f"received {msg_flag}")
             SERVICE_ONLINE.clear()
             SERVICE_SOCKET.close()
         case "OPEN_E":
-            log_cnsl(service,f"received {msg_flag}")
             ...
         case "CLOSE_E":
-            log_cnsl(service,f"received {msg_flag}")
             ...
         case "SENSOR_E":
-            log_cnsl(service,f"received {msg_flag}")
             ...
         case "PHOTO_E":
-            log_cnsl(service,f"received {msg_flag}")
             with open("./pics/recv.jpeg","wb") as photo_file:
                 photo_file.write(bytes.fromhex(msg_content))
             ...
@@ -89,34 +87,29 @@ def client(service):
         SERVICE_PORT  = network.service_port(service)
         try:
             client_socket.connect((SERVICE_IPV4,SERVICE_PORT))
-            log_cnsl(service,f"connection established with {SERVICE_IPV4}")
             global SERVICE_SOCKET
             SERVICE_SOCKET = client_socket
-            play(service,client_socket)
+            log_cnsl(service,f"connection established with {SERVICE_IPV4}")
+            play(service)
             SERVICE_ONLINE.set()
-            try:
-                while True:
-                    if not SERVICE_ONLINE.is_set():
-                        client_socket.close()
-                        break
-                    header = recv_all(client_socket,4)
-                    data_length = struct.unpack("!I",header)[0]
-                    data_recv = recv_all(client_socket,data_length)
-                    if not data_recv:
-                        log_cnsl(service,f"received None")
-                        SERVICE_ONLINE.clear()
-                        client_socket.close()
-                        break
-                    msg_ID,msg_timestamp,msg_flag,msg_length,msg_content = decode_packet(data_recv)
-                    recv(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content)
-            except Exception as e:
-                log_cnsl(service,f"detected DOWNTIME | {e}")
-                SERVICE_ONLINE.clear()
-                client_socket.close()
+            while True:
+                if not SERVICE_ONLINE.is_set():
+                    SERVICE_SOCKET.close()
+                    return
+                header = recv_all(service,4)
+                length = struct.unpack("!I",header)[0]
+                data_recv = recv_all(service,length)
+                if not data_recv:
+                    log_cnsl(service,f"received None")
+                    SERVICE_ONLINE.clear()
+                    SERVICE_SOCKET.close()
+                    return
+                msg_ID,msg_timestamp,msg_flag,msg_length,msg_content = decode_packet(data_recv)
+                log_cnsl(service,f"received {msg_flag}")
+                recv(service,msg_ID,msg_timestamp,msg_flag,msg_length,msg_content)
         except ConnectionRefusedError:
             log_cnsl(service,f"connection with {SERVICE_IPV4} refused")
             SERVICE_ONLINE.clear()
-            client_socket.close()
     except KeyboardInterrupt:
         log_cnsl(service,"shutting down...")
         SERVICE_ONLINE.clear()
@@ -124,17 +117,14 @@ def client(service):
 def yourMainLogic(service):
     while not SERVICE_ONLINE.is_set():
         continue
-    client_socket = SERVICE_SOCKET
     msg_ID = 1
     while True:
         if not SERVICE_ONLINE.is_set():
             return
-        # @ telmo - for simulation purpose I will sleep 3 seconds and then call a random flag
         sleep(3)
         data_buff = ["OPEN_R","CLOSE_R","PHOTO_R"]
         data_flag = data_buff[randint(0,len(data_buff)-1)]
-        # @ telmo - the following code you do apply
-        send(service,client_socket,msg_ID,data_flag) 
+        send(service,msg_ID,data_flag) 
         msg_ID += 1
         # THE REST OF UR CODE #
 
