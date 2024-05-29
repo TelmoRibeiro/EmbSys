@@ -5,13 +5,17 @@
 - after some time multim.py eventually dies with Input/Output error (occurrences:High | replicate: High)
 - after enough time, number holding variables will break (prediction)
 
-## To Do
+## Minor To Do
+- argument IPV4
+- check handshake
+- check try catch
+- check ino shutdown and blocks
+- sensor not 100% reliable
+
+## Major To Do
 1) re-shoot support - DOING
-2) mobile           - ON HOLD
-3) last state and re-setup
-4) ipv4 as an argument support 
-5) proper shutdown and block in arduino
-6) ultrasound sensor is not 100% reliable
+2) mobile           - DOING
+3) last state \& reset - ON HOLD 
 
 ## Contacts
 telmo.ribeiro@fc.up.pt
