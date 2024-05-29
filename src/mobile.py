@@ -1,6 +1,6 @@
 import utilities.network   as network
 from utilities.message import encode_packet,decode_packet
-from utilities.log     import log_cnsl
+from utilities.log     import log
 
 import threading
 import socket
@@ -9,42 +9,55 @@ import struct
 from random            import randint
 from time              import sleep
 
+# GLOBALS #
+PHOTO_DIRECTORY = "./pics/"
+
 # EVENTS # 
 SERVICE_ONLINE = threading.Event() # SERVICE ONLINE?
 
 def play(service):
+    # handshake that unjams this endpoint
+    # used to sync all endpoints
+    service += "-HS"
     while True:
-        _,_,msg_flag,_ = decode_packet(SERVICE_SOCKET.recv(1024)) # not testing if none  
+        data_recv = SERVICE_SOCKET.recv(1024)
+        if not data_recv:
+            log(service,f"received nothing")
+            SERVICE_SOCKET.close()
+            return False
+        _,_,msg_flag,_ = decode_packet(data_recv)  
         match msg_flag:
             case SYNC if SYNC in ["SYNC"]:
-                log_cnsl(service,"received SYNC")
+                log(service,"received SYNC")
                 _,data_encd = encode_packet(0,"SYNC_ACK")
-                log_cnsl(service,"sending SYNC_ACK...")
+                log(service,"sending SYNC_ACK...")
                 SERVICE_SOCKET.sendall(data_encd)
-                return
+                return True
             case NSYNC if NSYNC in ["NSYNC"]:
-                log_cnsl(service,"received NSYNC")
+                log(service,"received NSYNC")
                 continue
             case _:
-                log_cnsl(service,f"SYNC/NSYNC expected yet {msg_flag} received")
+                log(service,f"SYNC/NSYNC expected yet {msg_flag} received")
                 SERVICE_ONLINE.clear()
                 SERVICE_SOCKET.close()
-                return
+                return False
     
 def send(service,msg_ID,msg_flag,msg_content=None):
     try:
         if not SERVICE_ONLINE.is_set():
-            log_cnsl(service,f"sending {msg_flag}... service OFFLINE")
+            log(service,f"detected DOWNTIME (send) | service OFFLINE")
             SERVICE_SOCKET.close()
-            return
+            return False
         _,data_encd = encode_packet(msg_ID,msg_flag,msg_content)
-        log_cnsl(service,f"sending {msg_flag}...")
+        log(service,f"sending {msg_flag}...")
         length = struct.pack("!I",len(data_encd))
         SERVICE_SOCKET.sendall(length + data_encd)
+        return True
     except Exception as e:
-        log_cnsl(service,f"detected DOWNTIME | {e}")
+        log(service,f"detected DOWNTIME (send) | {e}")
         SERVICE_ONLINE.clear()
         SERVICE_SOCKET.close()
+        return False
 
 def recv_all(service,length):
     try:
@@ -52,13 +65,17 @@ def recv_all(service,length):
         while len(data_read) < length:
             chunk = SERVICE_SOCKET.recv(length - len(data_read))
             if not chunk:
-                raise Exception("received nothing")
+                log(service,f"detected DOWNTIME (recv) | received nothing")
+                SERVICE_ONLINE.clear()
+                SERVICE_SOCKET.close()
+                return None
             data_read.extend(chunk)
         return bytes(data_read)
     except Exception as e:
-        log_cnsl(service,f"DETECTED DOWNTIME | caught {e}")
+        log(service,f"detected DOWNTIME (recv) | caught {e}")
         SERVICE_ONLINE.clear()
         SERVICE_SOCKET.close()
+        return None
 
 def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
     match msg_flag:
@@ -72,11 +89,12 @@ def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
         case "SENSOR_E":
             ...
         case "PHOTO_E":
-            with open("./pics/recv.jpeg","wb") as photo_file:
+            photo_path = PHOTO_DIRECTORY + "recv.png"
+            with open(photo_path,"wb") as photo_file:
                 photo_file.write(bytes.fromhex(msg_content))
             ...
         case _:
-            log_cnsl(service,f"flag={msg_flag} not supported")
+            log(service,f"flag={msg_flag} not supported")
             SERVICE_ONLINE.clear()
             SERVICE_SOCKET.close()
 
@@ -89,34 +107,35 @@ def client(service):
             client_socket.connect((SERVICE_IPV4,SERVICE_PORT))
             global SERVICE_SOCKET
             SERVICE_SOCKET = client_socket
-            log_cnsl(service,f"connection established with {SERVICE_IPV4}")
+            log(service,f"connection established with {SERVICE_IPV4}")
             play(service)
             SERVICE_ONLINE.set()
             while True:
                 if not SERVICE_ONLINE.is_set():
+                    log(service,f"detected DOWNTIME - service OFFLINE")
                     SERVICE_SOCKET.close()
                     return
                 header = recv_all(service,4)
                 if not header:
-                    log_cnsl(service,f"received None")
+                    log(service,f"detected DOWNTIME (recv) | received nothing")
                     SERVICE_ONLINE.clear()
                     SERVICE_SOCKET.close()
                     return
                 length = struct.unpack("!I",header)[0]
                 data_recv = recv_all(service,length)
                 if not data_recv:
-                    log_cnsl(service,f"received None")
+                    log(service,f"detected DOWNTIME (recv) | received nothing")
                     SERVICE_ONLINE.clear()
                     SERVICE_SOCKET.close()
                     return
                 msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(data_recv)
-                log_cnsl(service,f"received {msg_flag}")
+                log(service,f"received {msg_flag}")
                 recv(service,msg_ID,msg_timestamp,msg_flag,msg_content)
         except ConnectionRefusedError:
-            log_cnsl(service,f"connection with {SERVICE_IPV4} refused")
+            log(service,f"connection with {SERVICE_IPV4} refused")
             SERVICE_ONLINE.clear()
     except KeyboardInterrupt:
-        log_cnsl(service,"shutting down...")
+        log(service,"shutting down...")
         SERVICE_ONLINE.clear()
 
 def yourMainLogic(service):

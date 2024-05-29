@@ -1,22 +1,24 @@
 # Mouse Trap
 
 ## Known Bugs
-- there is a stuck state on the Communication Center endpoint (occurrences:Low | replicate:Hard)
-- after some time multim.py eventually dies with Input/Output error (occurrences:High | replicate: High)
+- there is stuck states
+- multim dies with Input/Output error
 - after enough time, number holding variables will break (prediction)
 
+## Keep In Mind
+- the sensor is not 100% reliable
+- the WIFI-SH needs to be deployed even if not used
+
 ## Minor To Do
-- erase msg_len
-- argument IPV4
 - check handshake
-- check try catch
+- photo broken sometimes
 - check ino shutdown and blocks
-- sensor not 100% reliable
+- check try catch
+- add IPV4 as an argument
 
 ## Major To Do
-1) re-shoot support - DOING
-2) mobile           - DOING
-3) last state \& reset - ON HOLD 
+- mobile - DOING
+- last state \& reset - ON HOLD 
 
 ## Contacts
 telmo.ribeiro@fc.up.pt
