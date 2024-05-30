@@ -2,7 +2,6 @@
 
 ## Known Bugs (actively mitigating)
 - there is stuck states
-- after enough time, number holding variables will break (prediction)
 
 ## Known Issues (not actively mitigating)
 - the sensor is not 100% reliable
@@ -15,11 +14,11 @@
     - VERIFIED | SOLUTION = https://stackoverflow.com/questions/21596384/cannot-disable-systemd-serial-getty-service
 
 ## Minor To Do
-- check handshake
+- keep testing
 
 ## Major To Do
 - mobile - DOING
-- reset  - ON HOLD 
+- reset  - ON HOLD
 
 ## Contacts
 telmo.ribeiro@fc.up.pt

@@ -162,7 +162,6 @@ def send(service,client_socket,msg_ID,msg_flag,msg_content=None):
     # sends a message through the provided socket
     # it encodes said message before sending
     try:
-        # check if online?
         _,data_encd = encode_packet(msg_ID,msg_flag,msg_content)
         log(service,f"sending {msg_flag}...")
         length = struct.pack("!I",len(data_encd))

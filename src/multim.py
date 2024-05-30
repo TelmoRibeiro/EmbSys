@@ -29,9 +29,9 @@ def client(service):
             client_socket.connect((SERVICE_IPV4,SERVICE_PORT))
             global SERVICE_SOCKET
             SERVICE_SOCKET = client_socket
-            SERVICE_ONLINE.set()
             log(service,f"connection established with {SERVICE_IPV4}")
             play(service) # check bool
+            SERVICE_ONLINE.set()
             while True:
                 if not SERVICE_ONLINE.is_set():
                     log(service,f"detected DOWNTIME - service OFFLINE")
@@ -141,6 +141,8 @@ def message_control(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_cont
 def photos_control(service):
     # photo reshoot main functionality
     try:
+        while not SERVICE_ONLINE.is_set():
+            continue
         cam = Picamera2()
         cam.configure(cam.create_still_configuration(main={"format": "XRGB8888","size":(720,480)}))
         cam.start()
@@ -201,10 +203,6 @@ def send(service,msg_ID,msg_flag,msg_content=None):
     # sends a message through the provided socket
     # it encodes said message before sending
     try:
-        if not SERVICE_ONLINE.is_set():
-            log(service,f"detected DOWNTIME (send) | service OFFLINE")
-            SERVICE_SOCKET.close()
-            return False
         _,data_encd = encode_packet(msg_ID,msg_flag,msg_content)
         log(service,f"sending {msg_flag}...")
         length = struct.pack("!I",len(data_encd))
