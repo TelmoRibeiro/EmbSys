@@ -22,6 +22,16 @@ def toggleOffline(service):
         case _:
             log(service,f"service={service} not supported")
 
+def toggleClose(service):
+    # closes communication socket
+    match service:
+        case network.MOBILE_SERVER:
+            MOBILE_SOCKET.close()
+        case network.MULTIM_SERVER:
+            MULTIM_SOCKET.close()
+        case _:
+            log(service,f"service={service} not supported")
+
 def stop(service,client_socket):
     # jams everyone until all endpoints are online
     try:
@@ -32,7 +42,6 @@ def stop(service,client_socket):
                 MOBILE_ONLINE.set()
                 while not MULTIM_ONLINE.is_set():
                     sleep(1)
-                    log(service,"sending NSYNC...")
                     send(service,MOBILE_SOCKET,0,"NSYNC")
             case MULTIM_SERVER if MULTIM_SERVER == network.MULTIM_SERVER:
                 global MULTIM_SOCKET
@@ -40,24 +49,20 @@ def stop(service,client_socket):
                 MULTIM_ONLINE.set()
                 while not MOBILE_ONLINE.is_set():
                     sleep(1)
-                    log(service,"sending NSYNC...")
                     send(service,MULTIM_SOCKET,0,"NSYNC")
             case _:
-                log(service,f"service={service} not supported")
-                log(service,f"cannot close socket from local view")
-                toggleOffline(service)
+                raise Exception(f"service={service} not supported")
         return True
     except Exception as e:
         log(service,f"detected DOWNTIME | caught {e}")
         toggleOffline(service)
-        client_socket.close()
+        toggleClose(service)
         return False
 
 def play(service,client_socket):
     # handshake that unjams this endpoint
     # used to sync all endpoints
     try:
-        log(service,"sending SYNC...")
         send(service,client_socket,0,"SYNC")
         ##########
         header = recv_all(service,client_socket,4)
@@ -75,7 +80,7 @@ def play(service,client_socket):
     except Exception as e:
         log(service,f"detected DOWNTIME | caught {e}")
         toggleOffline(service)
-        client_socket.close()
+        toggleClose(service)
         return False
 
 def send(service,client_socket,msg_ID,msg_flag,msg_content=None):
@@ -89,7 +94,7 @@ def send(service,client_socket,msg_ID,msg_flag,msg_content=None):
     except Exception as e:
         log(service,f"detected DOWNTIME | {e}")
         toggleOffline(service)
-        client_socket.close()
+        toggleClose(service)
         return False
 
 def recv_all(service,client_socket,length):
@@ -98,16 +103,13 @@ def recv_all(service,client_socket,length):
         while len(data_read) < length:
             chunk = client_socket.recv(length - len(data_read))
             if not chunk:
-                log(service,f"detected DOWNTIME (recv) | received nothing")
-                toggleOffline(service)
-                client_socket.close()
-                return None
+                raise Exception("detected DOWNTIME (recv) | received nothing")
             data_read.extend(chunk)
         return bytes(data_read)
     except Exception as e:
         log(service,f"detected DOWNTIME (recv) | caught {e}")
         toggleOffline(service)
-        client_socket.close()
+        toggleClose(service)
         return None
 
 def server(service):
@@ -121,34 +123,33 @@ def server(service):
         while True:
             client_socket,client_address = server_socket.accept()
             log(service,f"connection established with {client_address}")
-            if not stop(service,client_socket):
-                break
-            if not play(service,client_socket):
-                break
-            while True:
-                if not MOBILE_ONLINE.is_set() or not MULTIM_ONLINE.is_set():
-                    log(service,f"sending SHUTDOWN...")
-                    send(service,client_socket,0,"SHUTDOWN")
-                    toggleOffline(service)
-                    client_socket.close()
-                    break
-                header = recv_all(service,client_socket,4)
-                if not header:
-                    log(service,f"detected DOWNTIME (recv) | received nothing")
-                    toggleOffline(service)
-                    client_socket.close()
-                    continue
-                length = struct.unpack("!I",header)[0]
-                data_recv = recv_all(service,client_socket,length)
-                if not data_recv:
-                    log(service,f"detected DOWNTIME (recv) | received nothing")
-                    toggleOffline(service)
-                    client_socket.close()
-                    continue
-                msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(data_recv)
-                log(service,f"received {msg_flag}")
-                message_control_thread = threading.Thread(target=message_control,args=(service,msg_ID,msg_timestamp,msg_flag,msg_content,))
-                message_control_thread.start()
+            boolS = stop(service,client_socket)
+            boolP = play(service,client_socket)
+            if not (boolS and boolP):
+                toggleOffline(service)
+                toggleClose(service)
+            try:
+                while True:
+                    if not MOBILE_ONLINE.is_set() or not MULTIM_ONLINE.is_set():
+                        send(service,client_socket,0,"SHUTDOWN")
+                        toggleOffline(service)
+                        toggleClose(service)
+                        break
+                    header = recv_all(service,client_socket,4)
+                    if not header:
+                        raise Exception("received nothing [header]")
+                    length = struct.unpack("!I",header)[0]
+                    data_recv = recv_all(service,client_socket,length)
+                    if not data_recv:
+                        raise Exception("received nothing [body]")
+                    msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(data_recv)
+                    log(service,f"received {msg_flag}")
+                    message_control_thread = threading.Thread(target=message_control,args=(service,msg_ID,msg_timestamp,msg_flag,msg_content,))
+                    message_control_thread.start()
+            except Exception as e:
+                log(service,f"detected DOWNTIME | caught {e}")
+                toggleOffline(service)
+                toggleClose(service)
     except KeyboardInterrupt:
         log(service,"shutting down...")
     finally:
@@ -156,26 +157,29 @@ def server(service):
 
 # @ telmo - not testing for source (not hard to, tho...)
 def message_control(service,msg_ID,msg_timestamp,msg_flag,msg_content):
-    match msg_flag:
-        case FLAG if FLAG in ["OPEN_R","CLOSE_R"]:
-            SENSOR_EVENT.clear()
-            send(service,MULTIM_SOCKET,msg_ID,msg_flag,msg_content)
-        case FLAG if FLAG in ["PHOTO_R"]:
-            send(service,MULTIM_SOCKET,msg_ID,msg_flag,msg_content)
-        case FLAG if FLAG in ["OPEN_E","CLOSE_E","PHOTO_E"]:
-            send(service,MOBILE_SOCKET,msg_ID,msg_flag,msg_content)
-        case FLAG if FLAG in ["SENSOR_E"]: # @ telmo - SENSOR_E after SENSOR_E?
-            send(service,MOBILE_SOCKET,msg_ID,msg_flag,msg_content)
-            send(service,MULTIM_SOCKET,msg_ID,"PHOTO_R")
-            SENSOR_EVENT.set()
-            sleep(5)
-            if SENSOR_EVENT.is_set():
-                send(service,MULTIM_SOCKET,msg_ID,"CLOSE_R") 
-            SENSOR_EVENT.clear()
-        case _:
-            log(service,f"flag={msg_flag} not supported")
-            log(service,f"cannot close socket from local view")
-            toggleOffline(service)
+    try:
+        match msg_flag:
+            case FLAG if FLAG in ["OPEN_R","CLOSE_R"]:
+                SENSOR_EVENT.clear()
+                send(service,MULTIM_SOCKET,msg_ID,msg_flag,msg_content)
+            case FLAG if FLAG in ["PHOTO_R"]:
+                send(service,MULTIM_SOCKET,msg_ID,msg_flag,msg_content)
+            case FLAG if FLAG in ["OPEN_E","CLOSE_E","PHOTO_E"]:
+                send(service,MOBILE_SOCKET,msg_ID,msg_flag,msg_content)
+            case FLAG if FLAG in ["SENSOR_E"]: # @ telmo - SENSOR_E after SENSOR_E?
+                send(service,MOBILE_SOCKET,msg_ID,msg_flag,msg_content)
+                send(service,MULTIM_SOCKET,msg_ID,"PHOTO_R")
+                SENSOR_EVENT.set()
+                sleep(5)
+                if SENSOR_EVENT.is_set():
+                    send(service,MULTIM_SOCKET,msg_ID,"CLOSE_R") 
+                SENSOR_EVENT.clear()
+            case _:
+                raise Exception(service,f"flag={msg_flag} not supported")
+    except Exception as e:
+        log(service,f"detected DOWNTIME | caught {e}")
+        toggleOffline(service)
+        toggleClose(service)
 
 def main():
     mobile_thread = threading.Thread(target=server,args=(network.MOBILE_SERVER,))

@@ -12,9 +12,10 @@
     - VERIFIED
 
 ## Minor To Do
-- multim not shuting down (new thread will be the problem)
+- cc send (fix it)
+- multim not shuting down (new thread is the problem)
 - check handshake
-- photo broken sometimes
+- photo broken sometimes (???)
 - check ino shutdown and blocks
 - check try catch
 - add IPV4 as an argument
