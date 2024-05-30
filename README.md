@@ -11,6 +11,8 @@
     - VERIFIED
 - Input/Output Error
     - VERIFIED
+- Readiness Receive Error
+    - VERIFIED | SOLUTION = https://stackoverflow.com/questions/21596384/cannot-disable-systemd-serial-getty-service
 
 ## Minor To Do
 - check handshake
