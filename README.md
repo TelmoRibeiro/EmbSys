@@ -2,7 +2,6 @@
 
 ## Known Bugs (actively mitigating)
 - there is stuck states
-- multim dies with Input/Output error
 - after enough time, number holding variables will break (prediction)
 
 ## Known Issues (not actively mitigating)
@@ -10,9 +9,10 @@
     - VERIFIED
 - the WIFI-SH needs to be deployed even if not used
     - VERIFIED
+- Input/Output Error
+    - VERIFIED
 
 ## Minor To Do
-- add raw recv
 - check handshake
 - add IPV4 as an argument
 
