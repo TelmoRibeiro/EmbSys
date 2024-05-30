@@ -16,7 +16,6 @@
 
 ## Minor To Do
 - check handshake
-- add IPV4 as an argument
 
 ## Major To Do
 - mobile - DOING
