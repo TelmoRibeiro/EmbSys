@@ -5,7 +5,7 @@
 - multim dies with Input/Output error
 - after enough time, number holding variables will break (prediction)
 
-## Kown Issues (not actively mitigating)
+## Known Issues (not actively mitigating)
 - the sensor is not 100% reliable
     - VERIFIED
 - the WIFI-SH needs to be deployed even if not used
