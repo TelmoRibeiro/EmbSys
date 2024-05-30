@@ -28,7 +28,6 @@ def play(service):
             match msg_flag:
                 case SYNC if SYNC in ["SYNC"]:
                     log(service,"received SYNC")
-                    log(service,"sending SYNC_ACK...")
                     send(service,0,"SYNC_ACK")
                     return True
                 case NSYNC if NSYNC in ["NSYNC"]:
@@ -54,7 +53,7 @@ def send(service,msg_ID,msg_flag,msg_content=None):
         SERVICE_SOCKET.sendall(length + data_encd)
         return True
     except Exception as e:
-        log(service,f"detected DOWNTIME (send) | {e}")
+        log(service,f"detected DOWNTIME (send) | caught {e}")
         SERVICE_ONLINE.clear()
         SERVICE_SOCKET.close()
         return False
@@ -65,10 +64,7 @@ def recv_all(service,length):
         while len(data_read) < length:
             chunk = SERVICE_SOCKET.recv(length - len(data_read))
             if not chunk:
-                log(service,f"detected DOWNTIME (recv) | received nothing")
-                SERVICE_ONLINE.clear()
-                SERVICE_SOCKET.close()
-                return None
+                raise Exception("detected DOWNTIME (recv) | received nothing")
             data_read.extend(chunk)
         return bytes(data_read)
     except Exception as e:
@@ -78,25 +74,28 @@ def recv_all(service,length):
         return None
 
 def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
-    match msg_flag:
-        case "SHUTDOWN":
-            SERVICE_ONLINE.clear()
-            SERVICE_SOCKET.close()
-        case "OPEN_E":
-            ...
-        case "CLOSE_E":
-            ...
-        case "SENSOR_E":
-            ...
-        case "PHOTO_E":
-            photo_path = directory.PHOTO_DIR + "recv.png"
-            with open(photo_path,"wb") as photo_file:
-                photo_file.write(bytes.fromhex(msg_content))
-            ...
-        case _:
-            log(service,f"flag={msg_flag} not supported")
-            SERVICE_ONLINE.clear()
-            SERVICE_SOCKET.close()
+    try:
+        match msg_flag:
+            case "SHUTDOWN":
+                SERVICE_ONLINE.clear()
+                SERVICE_SOCKET.close()
+            case "OPEN_E":
+                ...
+            case "CLOSE_E":
+                ...
+            case "SENSOR_E":
+                ...
+            case "PHOTO_E":
+                photo_path = directory.PHOTO_DIR + "recv.png"
+                with open(photo_path,"wb") as photo_file:
+                    photo_file.write(bytes.fromhex(msg_content))
+                ...
+            case _:
+                raise Exception(f"flag={msg_flag} not supported")
+    except Exception as e:
+        log(service,f"detected DOWNTIME (recv) | caught {e}")
+        SERVICE_ONLINE.clear()
+        SERVICE_SOCKET.close()
 
 def client(service):
     try:
@@ -109,7 +108,7 @@ def client(service):
             SERVICE_SOCKET = client_socket
             SERVICE_ONLINE.set()
             log(service,f"connection established with {SERVICE_IPV4}")
-            play(service)
+            play(service) # check bool
             while True:
                 if not SERVICE_ONLINE.is_set():
                     log(service,f"detected DOWNTIME - service OFFLINE")

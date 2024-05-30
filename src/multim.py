@@ -30,7 +30,6 @@ def play(service):
             match msg_flag:
                 case SYNC if SYNC in ["SYNC"]:
                     log(service,"received SYNC")
-                    log(service,"sending SYNC_ACK...")
                     send(service,0,"SYNC_ACK")
                     return True
                 case NSYNC if NSYNC in ["NSYNC"]:
@@ -56,7 +55,7 @@ def send(service,msg_ID,msg_flag,msg_content=None):
         SERVICE_SOCKET.sendall(length + data_encd)
         return True
     except Exception as e:
-        log(service,f"detected DOWNTIME (send) | {e}")
+        log(service,f"detected DOWNTIME (send) | caught {e}")
         SERVICE_ONLINE.clear()
         SERVICE_SOCKET.close()
         return False
@@ -67,10 +66,7 @@ def recv_all(service,length):
         while len(data_read) < length:
             chunk = SERVICE_SOCKET.recv(length - len(data_read))
             if not chunk:
-                log(service,f"detected DOWNTIME (recv) | received nothing")
-                SERVICE_ONLINE.clear()
-                SERVICE_SOCKET.close()
-                return None
+                raise Exception("detected DOWNTIME (recv) | received nothing")
             data_read.extend(chunk)
         return bytes(data_read)
     except Exception as e:
@@ -80,26 +76,29 @@ def recv_all(service,length):
         return None
 
 def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
-    global ARDUINO_GLOBAL
-    match msg_flag:
-        case "SHUTDOWN":
-            SERVICE_ONLINE.clear()
-            SERVICE_SOCKET.close()
-        case "OPEN_R":
-            _,ARDUINO_GLOBAL = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
-            ARDUINO_EVENT.set()
-        case "CLOSE_R":
-            _,ARDUINO_GLOBAL = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
-            ARDUINO_EVENT.set()
-        case "PHOTO_R":
-            photo_path = directory.PHOTO_DIR + "send.png"
-            with open(photo_path,"rb") as photo_file:
-                photo_data = photo_file.read()
-            send(service,msg_ID,"PHOTO_E",photo_data.hex())
-        case _:
-            log(service,f"flag={msg_flag} not supported")
-            SERVICE_ONLINE.clear()
-            SERVICE_SOCKET.close()
+    try:
+        global ARDUINO_GLOBAL
+        match msg_flag:
+            case "SHUTDOWN":
+                SERVICE_ONLINE.clear()
+                SERVICE_SOCKET.close()
+            case "OPEN_R":
+                _,ARDUINO_GLOBAL = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
+                ARDUINO_EVENT.set()
+            case "CLOSE_R":
+                _,ARDUINO_GLOBAL = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
+                ARDUINO_EVENT.set()
+            case "PHOTO_R":
+                photo_path = directory.PHOTO_DIR + "send.png"
+                with open(photo_path,"rb") as photo_file:
+                    photo_data = photo_file.read()
+                send(service,msg_ID,"PHOTO_E",photo_data.hex())
+            case _:
+                raise Exception(f"flag={msg_flag} not supported")
+    except Exception as e:
+        log(service,f"detected DOWNTIME (recv) | caught {e}")
+        SERVICE_ONLINE.clear()
+        SERVICE_SOCKET.close()
 
 def client(service):
     try:
@@ -112,7 +111,7 @@ def client(service):
             SERVICE_SOCKET = client_socket
             SERVICE_ONLINE.set()
             log(service,f"connection established with {SERVICE_IPV4}")
-            play(service)
+            play(service) # check bool
             while True:
                 if not SERVICE_ONLINE.is_set():
                     log(service,f"detected DOWNTIME - service OFFLINE")
@@ -149,9 +148,8 @@ def arduino_client(service):
             continue
         while True:
             if not SERVICE_ONLINE.is_set():
-                log(service,"shutting down...")
                 serial_socket.close()
-                return
+                raise Exception("detected DOWNTIME | service OFFLINE")
             if serial_socket.in_waiting:
                 msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(serial_socket.readline())
                 log(service,f"received {msg_flag} from SERIAL")
@@ -169,31 +167,41 @@ def arduino_client(service):
         SERVICE_SOCKET.close()
 
 def message_control(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_content):
-    match msg_flag:
-        case EVENT if EVENT in ["OPEN_E","CLOSE_E","SENSOR_E"]:
-            send(service,msg_ID,msg_flag,msg_content)
-        case REQUEST if REQUEST in ["OPEN_R","CLOSE_R"]:
-            _,data_encd = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
-            serial_socket.write(data_encd)
-        case _:
-            log(service,f"flag={msg_flag} not supported")
-            SERVICE_ONLINE.clear()
-            SERVICE_SOCKET.close()
-            serial_socket.close()
-        
-def photo_control():
-    cam = Picamera2()
-    cam.configure(cam.create_still_configuration(main={"format": "XRGB8888","size":(720,480)}))
-    cam.start()
-    while True:
-        photo_path = directory.PHOTO_DIR + "send.png"
-        cam.capture_file(photo_path) # default delay = 1 sec
-        sleep(1)
+    try:
+        match msg_flag:
+            case EVENT if EVENT in ["OPEN_E","CLOSE_E","SENSOR_E"]:
+                send(service,msg_ID,msg_flag,msg_content)
+            case REQUEST if REQUEST in ["OPEN_R","CLOSE_R"]:
+                _,data_encd = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
+                serial_socket.write(data_encd)
+            case _:
+                serial_socket.close()
+                raise Exception(f"flag={msg_flag} not supported")
+    except Exception as e:
+        log(service,f"detected DOWNTIME | caught {e}")
+        SERVICE_ONLINE.clear()
+        SERVICE_SOCKET.close()
+
+def photos_control(service):
+    try:
+        cam = Picamera2()
+        cam.configure(cam.create_still_configuration(main={"format": "XRGB8888","size":(720,480)}))
+        cam.start()
+        while True:
+            if not SERVICE_ONLINE.is_set():
+                raise Exception("detected DOWNTIME | service OFFLINE")
+            photo_path = directory.PHOTO_DIR + "send.png"
+            cam.capture_file(photo_path) # default delay = 1 sec
+            sleep(1)                     # maybe not needed
+    except Exception as e:
+        log(service,f"detected DOWNTIME | caught {e}")
+        SERVICE_ONLINE.clear()
+        SERVICE_SOCKET.close()
 
 def main():
     multim_thread = threading.Thread(target=client,args=(network.MULTIM_CLIENT,))
     mouset_thread = threading.Thread(target=arduino_client,args=("ARDUINO-CLNT",))
-    photos_thread = threading.Thread(target=photo_control,args=())
+    photos_thread = threading.Thread(target=photos_control,args=("PHOTOS-CNTRL",))
     multim_thread.start()
     mouset_thread.start()
     photos_thread.start()

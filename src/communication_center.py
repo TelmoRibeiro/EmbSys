@@ -92,7 +92,7 @@ def send(service,client_socket,msg_ID,msg_flag,msg_content=None):
         client_socket.sendall(length + data_encd)
         return True
     except Exception as e:
-        log(service,f"detected DOWNTIME | {e}")
+        log(service,f"detected DOWNTIME (send) | caught {e}")
         toggleOffline(service)
         toggleClose(service)
         return False

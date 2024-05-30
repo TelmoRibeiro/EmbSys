@@ -12,12 +12,8 @@
     - VERIFIED
 
 ## Minor To Do
-- cc send (fix it)
-- multim not shuting down (new thread is the problem)
+- add raw recv
 - check handshake
-- photo broken sometimes (???)
-- check ino shutdown and blocks
-- check try catch
 - add IPV4 as an argument
 
 ## Major To Do
