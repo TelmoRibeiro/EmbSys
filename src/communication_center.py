@@ -8,12 +8,17 @@ import struct
 from time import sleep
 
 # NETWORK:
-SERVICE_IPV4  = network.SERVER_IPV4
+SERVICE_IPV4 = network.SERVER_IPV4
+
+# STATUS:
+DOOR_STATUS = "OPEN_R"
 
 # EVENTS:
 MULTIM_ONLINE = threading.Event() # multim center status
 MOBILE_ONLINE = threading.Event() # mobile center status
 SENSOR_EVENT  = threading.Event() # sensor smart processing
+MULTIM_STATUS_EVENT = threading.Event() # received status message?
+MOBILE_STAUTS_EVENT = threading.Event() # received status message?S
 
 def server(service):
     # main functionality
@@ -69,6 +74,9 @@ def message_control(service,msg_ID,msg_timestamp,msg_flag,msg_content):
             case FLAG if FLAG in ["PHOTO_R"]:
                 send(service,MULTIM_SOCKET,msg_ID,msg_flag,msg_content)
             case FLAG if FLAG in ["OPEN_E","CLOSE_E","PHOTO_E"]:
+                if FLAG != "PHOTO_E":
+                    global DOOR_STATUS
+                    DOOR_STATUS = FLAG
                 send(service,MOBILE_SOCKET,msg_ID,msg_flag,msg_content)
             case FLAG if FLAG in ["SENSOR_E"]: # @ telmo - SENSOR_E after SENSOR_E?
                 send(service,MOBILE_SOCKET,msg_ID,msg_flag,msg_content)
@@ -116,8 +124,8 @@ def play(service,client_socket):
     # handshake that unjams this endpoint
     # used to sync all endpoints
     try:
+        ########## SYNC
         send(service,client_socket,0,"SYNC")
-        ##########
         header = recv_all(service,client_socket,4)
         if not header:
             raise Exception("received nothing [header]")
@@ -125,10 +133,24 @@ def play(service,client_socket):
         data_recv = recv_all(service,client_socket,length)
         if not data_recv:
             raise Exception("received nothing [body]")
-        _,_,msg_flag,_ = decode_packet(data_recv)
-        log(service,f"received {msg_flag}")
+        _,_,msg_flag,msg_content = decode_packet(data_recv)
+        log(service,f"received {msg_flag} - {msg_content}")
         if msg_flag != "SYNC_ACK":
             raise Exception(f"SYNC_ACK expected yet {msg_flag} received")
+        match service:
+            case MOBILE if MOBILE == network.MOBILE_SERVER:
+                MOBILE_STAUTS_EVENT.set()
+                while not MULTIM_STATUS_EVENT.is_set():
+                    continue
+            case MULTIM if MULTIM == network.MULTIM_SERVER:
+                global DOOR_STATUS
+                DOOR_STATUS == msg_content
+                MULTIM_STATUS_EVENT.set()
+                while not MOBILE_STAUTS_EVENT.is_set():
+                    continue
+        send(service,client_socket,0,"SYNC_UP",DOOR_STATUS)
+        MULTIM_STATUS_EVENT.clear()
+        MOBILE_STAUTS_EVENT.clear()
         return True
     except Exception as e:
         log(service,f"detected DOWNTIME | caught {e}")

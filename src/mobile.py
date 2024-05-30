@@ -12,6 +12,9 @@ from random import randint
 # NETWORK:
 SERVICE_IPV4  = network.SERVER_IPV4
 
+# STATUS:
+DOOR_STATUS = "OPEN_R"
+
 # EVENTS # 
 SERVICE_ONLINE = threading.Event() # service status
 
@@ -58,14 +61,17 @@ def client(service):
 
 def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
     # patttern matches the received fields into functions
+    global DOOR_STATUS
     try:
         match msg_flag:
             case "SHUTDOWN":
                 SERVICE_ONLINE.clear()
                 SERVICE_SOCKET.close()
             case "OPEN_E":
+                DOOR_STATUS = msg_flag
                 ...
             case "CLOSE_E":
+                DOOR_STATUS = msg_flag
                 ...
             case "SENSOR_E":
                 ...
@@ -100,6 +106,7 @@ def play(service):
     # handshake that unjams this endpoint
     # used to sync all endpoints
     try:
+        global DOOR_STATUS
         while True:
             header = recv_all(service,4)
             if not header:
@@ -112,7 +119,19 @@ def play(service):
             match msg_flag:
                 case SYNC if SYNC in ["SYNC"]:
                     log(service,"received SYNC")
-                    send(service,0,"SYNC_ACK")
+                    send(service,0,"SYNC_ACK",DOOR_STATUS)
+                    header = recv_all(service,4)
+                    if not header:
+                        raise Exception("received nothing [header]")
+                    length = struct.unpack("!I",header)[0]
+                    data_recv = recv_all(service,length)
+                    if not data_recv:
+                        raise Exception("received nothing [body]")
+                    _,_,msg_flag,msg_content = decode_packet(data_recv)
+                    log(service,f"received {msg_flag} - {msg_content}")
+                    if msg_flag != "SYNC_UP":
+                        raise Exception(f"SYNC_UP expected yet {msg_flag} received")
+                    DOOR_STATUS = msg_content
                     return True
                 case NSYNC if NSYNC in ["NSYNC"]:
                     log(service,"received NSYNC")
