@@ -10,6 +10,9 @@ import serial  # enables communication with arduino
 from time      import sleep
 from picamera2 import Picamera2 # type: ignore # photo handler (linux)
 
+# NETWORK:
+SERVICE_IPV4  = network.SERVER_IPV4
+
 # EVENTS #
 SERVICE_ONLINE = threading.Event() # service status
 ARDUINO_EVENT  = threading.Event() # communication client -> arduino_client
@@ -18,7 +21,6 @@ def client(service):
     # main functionality
     try:
         client_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        SERVICE_IPV4  = network.SERVER_IPV4
         SERVICE_PORT  = network.service_port(service)
         try:
             client_socket.connect((SERVICE_IPV4,SERVICE_PORT))
@@ -57,6 +59,7 @@ def client(service):
         SERVICE_ONLINE.clear()
 
 def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
+    # patttern matches the received fields into functions
     try:
         global ARDUINO_GLOBAL
         match msg_flag:
@@ -212,6 +215,10 @@ def recv_all(service,length):
         return None
 
 def main():
+    from sys import argv
+    if len(argv) == 2:
+        global SERVICE_IPV4
+        SERVICE_IPV4 = argv[1]
     multim_thread = threading.Thread(target=client,args=(network.MULTIM_CLIENT,))
     mouset_thread = threading.Thread(target=arduino_client,args=("ARDUINO-CLNT",))
     photos_thread = threading.Thread(target=photos_control,args=("PHOTOS-CNTRL",))

@@ -7,6 +7,9 @@ import socket
 import struct
 from time import sleep
 
+# NETWORK:
+SERVICE_IPV4  = network.SERVER_IPV4
+
 # EVENTS:
 MULTIM_ONLINE = threading.Event() # multim center status
 MOBILE_ONLINE = threading.Event() # mobile center status
@@ -15,7 +18,6 @@ SENSOR_EVENT  = threading.Event() # sensor smart processing
 def server(service):
     # main functionality
     server_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-    SERVICE_IPV4  = network.SERVER_IPV4
     SERVICE_PORT  = network.service_port(service)
     server_socket.bind((SERVICE_IPV4,SERVICE_PORT))
     server_socket.listen()
@@ -188,6 +190,10 @@ def toggleClose(service):
             log(service,f"service={service} not supported")
     
 def main():
+    from sys import argv
+    if len(argv) == 2:
+        global SERVICE_IPV4
+        SERVICE_IPV4 = argv[1]
     mobile_thread = threading.Thread(target=server,args=(network.MOBILE_SERVER,))
     multim_thread = threading.Thread(target=server,args=(network.MULTIM_SERVER,))
     mobile_thread.start()

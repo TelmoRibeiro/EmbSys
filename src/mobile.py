@@ -9,6 +9,9 @@ import struct
 from time   import sleep
 from random import randint
 
+# NETWORK:
+SERVICE_IPV4  = network.SERVER_IPV4
+
 # EVENTS # 
 SERVICE_ONLINE = threading.Event() # service status
 
@@ -16,7 +19,6 @@ def client(service):
     # main functionality
     try:
         client_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-        SERVICE_IPV4  = network.SERVER_IPV4
         SERVICE_PORT  = network.service_port(service)
         try:
             client_socket.connect((SERVICE_IPV4,SERVICE_PORT))
@@ -160,6 +162,10 @@ def recv_all(service,length):
         return None
 
 def main():
+    from sys import argv
+    if len(argv) == 2:
+        global SERVICE_IPV4
+        SERVICE_IPV4 = argv[1]
     mobile_thread = threading.Thread(target=client,args=(network.MOBILE_CLIENT,))
     urmain_thread = threading.Thread(target=yourMainLogic,args=(network.MOBILE_CLIENT,))
     mobile_thread.start()
