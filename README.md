@@ -19,7 +19,7 @@
 
 ## Major To Do
 - mobile - DOING
-- last state \& reset - ON HOLD 
+- reset  - ON HOLD 
 
 ## Contacts
 telmo.ribeiro@fc.up.pt
