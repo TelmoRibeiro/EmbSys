@@ -45,7 +45,7 @@ def client(service):
                     return
                 length = struct.unpack("!I",header)[0]
                 data_recv = recv_all(service,length)
-                log(service,f"received (RAW) {data_recv}")
+                # log(service,f"received (RAW) {data_recv}")
                 if not data_recv:
                     log(service,f"detected DOWNTIME (recv) | received nothing")
                     SERVICE_ONLINE.clear()
@@ -100,14 +100,14 @@ def arduino_client(service):
                 raise Exception("detected DOWNTIME | service OFFLINE")
             if serial_socket.in_waiting:
                 data_recv = serial_socket.readline()
-                log(service,f"received (RAW) {data_recv}")
+                # log(service,f"received (RAW) {data_recv}")
                 msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(data_recv)
                 log(service,f"received {msg_flag} from SERIAL")
                 message_control_thread = threading.Thread(target=message_control,args=(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_content,))
                 message_control_thread.start()
             if ARDUINO_EVENT.is_set():
                 data_recv = ARDUINO_GLOBAL
-                log(service,f"received (RAW) {data_recv}")
+                # log(service,f"received (RAW) {data_recv}")
                 msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(data_recv)
                 ARDUINO_EVENT.clear()
                 log(service,f"received {msg_flag} from WIFI")
@@ -141,11 +141,11 @@ def message_control(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_cont
 def photos_control(service):
     # photo reshoot main functionality
     try:
-        while not SERVICE_ONLINE.is_set():
-            continue
         cam = Picamera2()
         cam.configure(cam.create_still_configuration(main={"format": "XRGB8888","size":(720,480)}))
         cam.start()
+        while not SERVICE_ONLINE.is_set():
+            continue
         while True:
             if not SERVICE_ONLINE.is_set():
                 raise Exception("detected DOWNTIME | service OFFLINE")
@@ -236,12 +236,18 @@ def main():
     if len(argv) == 2:
         global SERVICE_IPV4
         SERVICE_IPV4 = argv[1]
-    multim_thread = threading.Thread(target=client,args=(network.MULTIM_CLIENT,))
-    mouset_thread = threading.Thread(target=arduino_client,args=("ARDUINO-CLNT",))
-    photos_thread = threading.Thread(target=photos_control,args=("PHOTOS-CNTRL",))
-    multim_thread.start()
-    mouset_thread.start()
-    photos_thread.start()
-    # RUNNING THREADS #
+    while True:
+        multim_thread = threading.Thread(target=client,args=(network.MULTIM_CLIENT,))
+        mouset_thread = threading.Thread(target=arduino_client,args=("ARDUINO-CLNT",))
+        photos_thread = threading.Thread(target=photos_control,args=("PHOTOS-CNTRL",))
+        SERVICE_ONLINE.clear()
+        ARDUINO_EVENT.clear()
+        multim_thread.start()
+        mouset_thread.start()
+        photos_thread.start()
+        # RUNNING THREADS #
+        multim_thread.join()
+        mouset_thread.join()
+        photos_thread.join()
 
 if __name__ == "__main__": main()

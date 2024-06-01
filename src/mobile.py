@@ -43,7 +43,7 @@ def client(service):
                     return
                 length = struct.unpack("!I",header)[0]
                 data_recv = recv_all(service,length)
-                log(service,f"received (RAW) {data_recv}")
+                # log(service,f"received (RAW) {data_recv}")
                 if not data_recv:
                     log(service,f"detected DOWNTIME (recv) | received nothing")
                     SERVICE_ONLINE.clear()
@@ -181,10 +181,14 @@ def main():
     if len(argv) == 2:
         global SERVICE_IPV4
         SERVICE_IPV4 = argv[1]
-    mobile_thread = threading.Thread(target=client,args=(network.MOBILE_CLIENT,))
-    urmain_thread = threading.Thread(target=yourMainLogic,args=(network.MOBILE_CLIENT,))
-    mobile_thread.start()
-    urmain_thread.start()
-    # RUNNING THREADS #
+    while True:
+        mobile_thread = threading.Thread(target=client,args=(network.MOBILE_CLIENT,))
+        urmain_thread = threading.Thread(target=yourMainLogic,args=(network.MOBILE_CLIENT,))
+        SERVICE_ONLINE.clear()
+        mobile_thread.start()
+        urmain_thread.start()
+        # RUNNING THREADS #
+        mobile_thread.join()
+        urmain_thread.join()
 
 if __name__ == "__main__": main()

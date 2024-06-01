@@ -48,7 +48,7 @@ def server(service):
                         raise Exception("received nothing [header]")
                     length = struct.unpack("!I",header)[0]
                     data_recv = recv_all(service,client_socket,length)
-                    log(service,f"received (RAW) {data_recv}")
+                    # log(service,f"received (RAW) {data_recv}")
                     if not data_recv:
                         raise Exception("received nothing [body]")
                     msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(data_recv)

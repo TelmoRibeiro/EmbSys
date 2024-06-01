@@ -18,7 +18,6 @@
 
 ## Major To Do
 - mobile - DOING
-- reset  - ON HOLD
 
 ## Contacts
 telmo.ribeiro@fc.up.pt
