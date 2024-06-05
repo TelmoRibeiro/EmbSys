@@ -14,7 +14,7 @@
     - VERIFIED | SOLUTION = https://stackoverflow.com/questions/21596384/cannot-disable-systemd-serial-getty-service
 
 ## Minor To Do
-- keep testing
+- test and test and test again...
 
 ## Major To Do
 - mobile - DOING
