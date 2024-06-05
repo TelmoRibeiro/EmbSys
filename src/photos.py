@@ -15,7 +15,6 @@ def photos_control(service):
         cam.start()
         while True:
             cam.capture_file(photo_path) # default delay = 1 sec
-            sleep(1)                     # maybe not needed
     except Exception as e:
         log(service,f"detected DOWNTIME | caught {e}")
 

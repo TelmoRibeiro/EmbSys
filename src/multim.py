@@ -151,23 +151,12 @@ def play(service):
             data_recv = recv_all(service,length)
             if not data_recv:
                 raise Exception("received nothing [body]")
-            _,_,msg_flag,_ = decode_packet(data_recv)
+            _,_,msg_flag,msg_content = decode_packet(data_recv)
             match msg_flag:
                 case SYNC if SYNC in ["SYNC"]:
-                    log(service,"received SYNC")
-                    send(service,0,"SYNC_ACK",DOOR_STATUS)
-                    header = recv_all(service,4)
-                    if not header:
-                        raise Exception("received nothing [header]")
-                    length = struct.unpack("!I",header)[0]
-                    data_recv = recv_all(service,length)
-                    if not data_recv:
-                        raise Exception("received nothing [body]")
-                    _,_,msg_flag,msg_content = decode_packet(data_recv)
                     log(service,f"received {msg_flag} - {msg_content}")
-                    if msg_flag != "SYNC_UP":
-                        raise Exception(f"SYNC_UP expected yet {msg_flag} received")
                     DOOR_STATUS = msg_content
+                    send(service,0,"SYNC_ACK")
                     return True
                 case NSYNC if NSYNC in ["NSYNC"]:
                     log(service,"received NSYNC")

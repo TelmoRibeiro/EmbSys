@@ -17,8 +17,6 @@ DOOR_STATUS = "OPEN_R"
 MULTIM_ONLINE = threading.Event() # multim center status
 MOBILE_ONLINE = threading.Event() # mobile center status
 SENSOR_EVENT  = threading.Event() # sensor smart processing
-MULTIM_STATUS_EVENT = threading.Event() # received status message?
-MOBILE_STAUTS_EVENT = threading.Event() # received status message?
 
 def server(service):
     # main functionality
@@ -124,8 +122,8 @@ def play(service,client_socket):
     # handshake that unjams this endpoint
     # used to sync all endpoints
     try:
+        send(service,client_socket,0,"SYNC",DOOR_STATUS)
         ########## SYNC
-        send(service,client_socket,0,"SYNC")
         header = recv_all(service,client_socket,4)
         if not header:
             raise Exception("received nothing [header]")
@@ -133,24 +131,10 @@ def play(service,client_socket):
         data_recv = recv_all(service,client_socket,length)
         if not data_recv:
             raise Exception("received nothing [body]")
-        _,_,msg_flag,msg_content = decode_packet(data_recv)
-        log(service,f"received {msg_flag} - {msg_content}")
+        _,_,msg_flag,_ = decode_packet(data_recv)
+        log(service,f"received {msg_flag}")
         if msg_flag != "SYNC_ACK":
             raise Exception(f"SYNC_ACK expected yet {msg_flag} received")
-        match service:
-            case MOBILE if MOBILE == network.MOBILE_SERVER:
-                MOBILE_STAUTS_EVENT.set()
-                while not MULTIM_STATUS_EVENT.is_set():
-                    continue
-            case MULTIM if MULTIM == network.MULTIM_SERVER:
-                global DOOR_STATUS
-                DOOR_STATUS == msg_content
-                MULTIM_STATUS_EVENT.set()
-                while not MOBILE_STAUTS_EVENT.is_set():
-                    continue
-        send(service,client_socket,0,"SYNC_UP",DOOR_STATUS)
-        MULTIM_STATUS_EVENT.clear()
-        MOBILE_STAUTS_EVENT.clear()
         return True
     except Exception as e:
         log(service,f"detected DOWNTIME | caught {e}")
