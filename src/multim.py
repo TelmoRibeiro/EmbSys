@@ -67,8 +67,6 @@ def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
             case "SHUTDOWN":
                 SERVICE_ONLINE.clear()
                 SERVICE_SOCKET.close()
-            case "TEST":
-                ...
             case "OPEN_R":
                 _,ARDUINO_GLOBAL = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
                 ARDUINO_EVENT.set()
