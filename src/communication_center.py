@@ -18,7 +18,7 @@ MULTIM_ONLINE = threading.Event() # multim center status
 MOBILE_ONLINE = threading.Event() # mobile center status
 SENSOR_EVENT  = threading.Event() # sensor smart processing
 MULTIM_STATUS_EVENT = threading.Event() # received status message?
-MOBILE_STAUTS_EVENT = threading.Event() # received status message?S
+MOBILE_STAUTS_EVENT = threading.Event() # received status message?
 
 def server(service):
     # main functionality

@@ -67,6 +67,8 @@ def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
             case "SHUTDOWN":
                 SERVICE_ONLINE.clear()
                 SERVICE_SOCKET.close()
+            case "TEST":
+                ...
             case "OPEN_E":
                 DOOR_STATUS = msg_flag
                 ...

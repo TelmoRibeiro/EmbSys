@@ -7,8 +7,6 @@ import threading
 import socket
 import struct
 import serial  # enables communication with arduino 
-from time      import sleep
-from picamera2 import Picamera2 # type: ignore # photo handler (linux)
 
 # NETWORK:
 SERVICE_IPV4  = network.SERVER_IPV4
@@ -69,6 +67,8 @@ def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
             case "SHUTDOWN":
                 SERVICE_ONLINE.clear()
                 SERVICE_SOCKET.close()
+            case "TEST":
+                ...
             case "OPEN_R":
                 _,ARDUINO_GLOBAL = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
                 ARDUINO_EVENT.set()
@@ -133,25 +133,6 @@ def message_control(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_cont
             case _:
                 serial_socket.close()
                 raise Exception(f"flag={msg_flag} not supported")
-    except Exception as e:
-        log(service,f"detected DOWNTIME | caught {e}")
-        SERVICE_ONLINE.clear()
-        SERVICE_SOCKET.close()
-
-def photos_control(service):
-    # photo reshoot main functionality
-    try:
-        cam = Picamera2()
-        cam.configure(cam.create_still_configuration(main={"format": "XRGB8888","size":(720,480)}))
-        cam.start()
-        while not SERVICE_ONLINE.is_set():
-            continue
-        while True:
-            if not SERVICE_ONLINE.is_set():
-                raise Exception("detected DOWNTIME | service OFFLINE")
-            photo_path = directory.PHOTO_DIR + "send.png"
-            cam.capture_file(photo_path) # default delay = 1 sec
-            sleep(1)                     # maybe not needed
     except Exception as e:
         log(service,f"detected DOWNTIME | caught {e}")
         SERVICE_ONLINE.clear()
@@ -239,15 +220,12 @@ def main():
     while True:
         multim_thread = threading.Thread(target=client,args=(network.MULTIM_CLIENT,))
         mouset_thread = threading.Thread(target=arduino_client,args=("ARDUINO-CLNT",))
-        photos_thread = threading.Thread(target=photos_control,args=("PHOTOS-CNTRL",))
         SERVICE_ONLINE.clear()
         ARDUINO_EVENT.clear()
         multim_thread.start()
         mouset_thread.start()
-        photos_thread.start()
         # RUNNING THREADS #
         multim_thread.join()
         mouset_thread.join()
-        photos_thread.join()
 
 if __name__ == "__main__": main()
