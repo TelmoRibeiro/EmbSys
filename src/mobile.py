@@ -1,13 +1,17 @@
 import utilities.network   as network
 import utilities.directory as directory
 from utilities.message     import encode_packet,decode_packet
+from utilities.layout      import KV
 from utilities.log         import log
 
-import threading
+from kivy.properties import StringProperty
+from kivy.clock      import Clock
+from kivy.lang       import Builder
+from kivymd.app      import MDApp
+from threading       import Thread,Event
+from struct          import pack,unpack
+
 import socket
-import struct
-from time   import sleep
-from random import randint
 
 # NETWORK:
 SERVICE_IPV4  = network.SERVER_IPV4
@@ -16,7 +20,56 @@ SERVICE_IPV4  = network.SERVER_IPV4
 DOOR_STATUS = "OPEN_R"
 
 # EVENTS # 
-SERVICE_ONLINE = threading.Event() # service status
+SERVICE_ONLINE = Event() # service status
+OPEN_EVENT   = Event() # is door open?
+CLOSE_EVENT  = Event() # is door close?
+PHOTO_EVENT  = Event() # was a photo received?
+SENSOR_EVENT = Event() # was something detected?
+
+class GUIApp(MDApp):
+    update_string = StringProperty("")
+
+    def build(self):
+        return Builder.load_string(KV)
+    
+    def connect(self,text):
+        global SERVICE_IPV4
+        SERVICE_IPV4 = text
+        mobile_thread = Thread(target=client,args=(network.MOBILE_CLIENT,))
+        mobile_thread.start()
+        self.root.ids.IPV4.text    = f"IPV4: {text}"
+        self.root.ids.Status.text  = f"STATUS: OPEN"
+        self.start_clock()
+    
+    def start_clock(self):
+        Clock.schedule_interval(self.updateGUI,0.5)
+
+    def updateGUI(self,*args):
+        if not SERVICE_ONLINE.is_set():
+            # abort
+            ...
+        if OPEN_EVENT.is_set():
+            self.root.ids.Status.text = f"STATUS: OPEN"
+            OPEN_EVENT.clear()
+        if CLOSE_EVENT.is_set():
+            self.root.ids.Status.text = f"STATUS: CLOSE"
+            CLOSE_EVENT.clear()
+        if SENSOR_EVENT.is_set():
+            self.root.ids.Status.text = f"STATUS: DETECTED"
+            SENSOR_EVENT.clear()
+        if PHOTO_EVENT.is_set():
+            self.root.ids.Photo.source = "./pics/recv.png"
+            PHOTO_EVENT.clear()
+        # do nothing needed?
+
+    def sendOpenR(self):
+        send("MOBILE-CLNT",100,"OPEN_R")
+    
+    def sendCloseR(self):
+        send("MOBILE-CLNT",100,"CLOSE_R")
+    
+    def sendPhotoR(self):
+        send("MOBILE-CLNT",100,"PHOTO_R")
 
 def client(service):
     # main functionality
@@ -41,7 +94,7 @@ def client(service):
                     SERVICE_ONLINE.clear()
                     SERVICE_SOCKET.close()
                     return
-                length = struct.unpack("!I",header)[0]
+                length = unpack("!I",header)[0]
                 data_recv = recv_all(service,length)
                 # log(service,f"received (RAW) {data_recv}")
                 if not data_recv:
@@ -69,17 +122,17 @@ def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
                 SERVICE_SOCKET.close()
             case "OPEN_E":
                 DOOR_STATUS = msg_flag
-                ...
+                OPEN_EVENT.set()
             case "CLOSE_E":
                 DOOR_STATUS = msg_flag
-                ...
+                CLOSE_EVENT.set()
             case "SENSOR_E":
-                ...
+                SENSOR_EVENT.set()
             case "PHOTO_E":
                 photo_path = directory.PHOTO_DIR + "recv.png"
                 with open(photo_path,"wb") as photo_file:
                     photo_file.write(bytes.fromhex(msg_content))
-                ...
+                PHOTO_EVENT.set()
             case _:
                 raise Exception(f"flag={msg_flag} not supported")
     except Exception as e:
@@ -87,6 +140,7 @@ def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
         SERVICE_ONLINE.clear()
         SERVICE_SOCKET.close()
 
+'''
 def yourMainLogic(service):
     # developer main functionality
     while not SERVICE_ONLINE.is_set():
@@ -101,7 +155,8 @@ def yourMainLogic(service):
         send(service,msg_ID,data_flag) 
         msg_ID += 1
         # THE REST OF UR CODE #
-
+'''
+        
 def play(service):
     # handshake that unjams this endpoint
     # used to sync all endpoints
@@ -111,7 +166,7 @@ def play(service):
             header = recv_all(service,4)
             if not header:
                 raise Exception("received nothing [header]")
-            length = struct.unpack("!I",header)[0]
+            length = unpack("!I",header)[0]
             data_recv = recv_all(service,length)
             if not data_recv:
                 raise Exception("received nothing [body]")
@@ -139,7 +194,7 @@ def send(service,msg_ID,msg_flag,msg_content=None):
     try:
         _,data_encd = encode_packet(msg_ID,msg_flag,msg_content)
         log(service,f"sending {msg_flag}...")
-        length = struct.pack("!I",len(data_encd))
+        length = pack("!I",len(data_encd))
         SERVICE_SOCKET.sendall(length + data_encd)
         return True
     except Exception as e:
@@ -166,18 +221,12 @@ def recv_all(service,length):
         return None
 
 def main():
-    from sys import argv
-    if len(argv) == 2:
-        global SERVICE_IPV4
-        SERVICE_IPV4 = argv[1]
-    while True:
-        mobile_thread = threading.Thread(target=client,args=(network.MOBILE_CLIENT,))
-        urmain_thread = threading.Thread(target=yourMainLogic,args=(network.MOBILE_CLIENT,))
-        SERVICE_ONLINE.clear()
-        mobile_thread.start()
-        urmain_thread.start()
-        # RUNNING THREADS #
-        mobile_thread.join()
-        urmain_thread.join()
+    SERVICE_ONLINE.clear()
+    OPEN_EVENT.clear()
+    CLOSE_EVENT.clear()
+    PHOTO_EVENT.clear()
+    SENSOR_EVENT.clear()
+    GUIApp().run()
+    # RUNNING THREADS #
 
 if __name__ == "__main__": main()
