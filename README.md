@@ -14,7 +14,6 @@
     - VERIFIED | SOLUTION = https://stackoverflow.com/questions/21596384/cannot-disable-systemd-serial-getty-service
 
 ## Minor To Do
-- photo not updating
 - sort GUI fields with minorca (info)
 - create disconnect button
 - show when "detected DOWNTIME"

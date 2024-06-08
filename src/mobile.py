@@ -35,9 +35,9 @@ class GUIApp(MDApp):
     def connect(self,text):
         global SERVICE_IPV4
         SERVICE_IPV4 = text
+        self.root.ids.IPV4.text = f"IPV4: {text}"
         mobile_thread = Thread(target=client,args=(network.MOBILE_CLIENT,))
         mobile_thread.start()
-        self.root.ids.IPV4.text = f"IPV4: {text}"
         self.start_clock()
     
     def start_clock(self):
@@ -45,9 +45,10 @@ class GUIApp(MDApp):
 
     def updateGUI(self,*args):
         if not SERVICE_ONLINE.is_set():
+            self.root.ids.IPV4.text        = f"IPV4: None"
+            self.root.ids.Status.text      = f"STATUS: None"
             self.root.ids.Connection.text  = f"CONNECTION: OFFLINE"
             self.root.ids.Connection.color = 1,0,0,1 # RGBA = Red
-            # abort
             ...
         else:
             self.root.ids.Connection.text  = f"CONNECTION: ONLINE"
@@ -62,8 +63,7 @@ class GUIApp(MDApp):
             self.root.ids.Status.text = f"STATUS: DETECTED"
             SENSOR_EVENT.clear()
         if PHOTO_EVENT.is_set():
-            self.root.ids.Photo.source = "./pics/wait.png"
-            self.root.ids.Photo.source = "./pics/recv.png"
+            self.root.ids.Photo.reload()
             PHOTO_EVENT.clear()
         # do nothing needed?
 
@@ -134,7 +134,7 @@ def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
             case "SENSOR_E":
                 SENSOR_EVENT.set()
             case "PHOTO_E":
-                photo_path = directory.PHOTO_DIR + "recv.png"
+                photo_path = "./src/pics/recv.png" # NEEDED to run on windows
                 with open(photo_path,"wb") as photo_file:
                     photo_file.write(bytes.fromhex(msg_content))
                 PHOTO_EVENT.set()

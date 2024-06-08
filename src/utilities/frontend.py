@@ -4,7 +4,7 @@ BoxLayout:
     orientation: 'vertical'
     
     Label:
-        id:             title
+        id:             Title
         text:           "MouseTrap-Mobile"
         font_size:      40
         pos_hint:       {'center_x': 0.5, 'center_y': 0.5}
@@ -61,7 +61,7 @@ BoxLayout:
 
     Label:
         id:             Status
-        text:           "STATUS: UNKOWN"
+        text:           "STATUS: None"
         size_hint:      (1, 0.05)
         canvas.before:
             Color:
@@ -71,7 +71,7 @@ BoxLayout:
                 size:   self.size
 
     BoxLayout:
-        id:             control
+        id:             Control
         orientation:    'vertical'
         canvas.before:
             Color:
@@ -81,7 +81,7 @@ BoxLayout:
                 size:   self.size
 
         BoxLayout:
-            id:             controlbuttons
+            id:             ControlButtons
             orientation:    'horizontal'
             size_hint:(1,0.1)
             canvas.before:

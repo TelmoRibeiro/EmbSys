@@ -1,1 +1,2 @@
-PHOTO_DIR = "./pics/" # directory to save photos
+# directory to save photos
+PHOTO_DIR = "./pics/"
