@@ -14,7 +14,7 @@ def photos_control(service):
         cam.configure(cam.create_still_configuration(main={"format": "XRGB8888","size":(720,480)}))
         cam.start()
         while True:
-            cam.capture_file(photo_path) # default delay = 1 sec
+            cam.capture_file(photo_path)
             log(service,f"photo captured")
             sleep(1)
     except Exception as e:
