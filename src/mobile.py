@@ -33,6 +33,7 @@ class GUIApp(MDApp):
         return Builder.load_string(KV)
     
     def connect(self,text):
+        # early logic
         global SERVICE_IPV4
         SERVICE_IPV4 = text
         self.root.ids.IPV4.text = f"IPV4: {text}"
@@ -41,15 +42,16 @@ class GUIApp(MDApp):
         self.start_clock()
     
     def start_clock(self):
+        # starts recurring logic
         Clock.schedule_interval(self.updateGUI,0.5)
 
     def updateGUI(self,*args):
+        # updates GUI with the current information
         if not SERVICE_ONLINE.is_set():
             self.root.ids.IPV4.text        = f"IPV4: None"
             self.root.ids.Status.text      = f"STATUS: None"
             self.root.ids.Connection.text  = f"CONNECTION: OFFLINE"
             self.root.ids.Connection.color = 1,0,0,1 # RGBA = Red
-            ...
         else:
             self.root.ids.Connection.text  = f"CONNECTION: ONLINE"
             self.root.ids.Connection.color = 0,1,0,1 # RGBA = Green
@@ -65,15 +67,17 @@ class GUIApp(MDApp):
         if PHOTO_EVENT.is_set():
             self.root.ids.Photo.reload()
             PHOTO_EVENT.clear()
-        # do nothing needed?
 
     def sendOpenR(self):
+        # sends open request
         send("MOBILE-CLNT",100,"OPEN_R")
     
     def sendCloseR(self):
+        # sends close request
         send("MOBILE-CLNT",100,"CLOSE_R")
     
     def sendPhotoR(self):
+        # sends photo request
         send("MOBILE-CLNT",100,"PHOTO_R")
 
 def client(service):
