@@ -19,7 +19,7 @@ SERVICE_IPV4  = network.SERVER_IPV4
 # STATUS:
 DOOR_STATUS = "OPEN_R"
 
-# EVENTS # 
+# EVENTS #
 SERVICE_ONLINE = Event() # service status
 OPEN_EVENT   = Event() # is door open?
 CLOSE_EVENT  = Event() # is door close?
@@ -48,10 +48,7 @@ class GUIApp(MDApp):
     def updateGUI(self,*args):
         # updates GUI with the current information
         if not SERVICE_ONLINE.is_set():
-            self.root.ids.IPV4.text        = f"IPV4: None"
-            self.root.ids.Status.text      = f"STATUS: None"
-            self.root.ids.Connection.text  = f"CONNECTION: OFFLINE"
-            self.root.ids.Connection.color = 1,0,0,1 # RGBA = Red
+            self.disconnect()
         else:
             self.root.ids.Connection.text  = f"CONNECTION: ONLINE"
             self.root.ids.Connection.color = 0,1,0,1 # RGBA = Green
@@ -79,6 +76,15 @@ class GUIApp(MDApp):
     def sendPhotoR(self):
         # sends photo request
         send("MOBILE-CLNT",100,"PHOTO_R")
+    
+    def disconnect(self):
+        # disconnects app
+        self.root.ids.IPV4.text        = f"IPV4: None"
+        self.root.ids.Status.text      = f"STATUS: None"
+        self.root.ids.Connection.text  = f"CONNECTION: OFFLINE"
+        self.root.ids.Connection.color = 1,0,0,1 # RGBA = Red
+        SERVICE_ONLINE.clear()
+        SERVICE_SOCKET.close()
 
 def client(service):
     # main functionality
@@ -149,23 +155,6 @@ def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
         SERVICE_ONLINE.clear()
         SERVICE_SOCKET.close()
 
-'''
-def yourMainLogic(service):
-    # developer main functionality
-    while not SERVICE_ONLINE.is_set():
-        continue
-    msg_ID = 1
-    while True:
-        if not SERVICE_ONLINE.is_set():
-            return
-        sleep(3)
-        data_buff = ["OPEN_R","CLOSE_R","PHOTO_R"]
-        data_flag = data_buff[randint(0,len(data_buff)-1)]
-        send(service,msg_ID,data_flag) 
-        msg_ID += 1
-        # THE REST OF UR CODE #
-'''
-        
 def play(service):
     # handshake that unjams this endpoint
     # used to sync all endpoints
@@ -237,5 +226,7 @@ def main():
     SENSOR_EVENT.clear()
     GUIApp().run()
     # RUNNING THREADS #
+    SERVICE_ONLINE.clear()
+    SERVICE_SOCKET.close()
 
 if __name__ == "__main__": main()

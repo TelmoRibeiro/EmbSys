@@ -92,19 +92,20 @@ BoxLayout:
                     size:   self.size
 
             Button:
-                id:             CloseButton
-                text:           "CLOSE"
-                on_press:       app.sendCloseR()
+                id:             OpenButton
+                text:           "OPEN"
+                on_press:       app.sendOpenR()
                 canvas.before:
                     Color:
                         rgba:   0,0,0,1
                     Rectangle:
                         pos:    self.pos
                         size:   self.size
+
             Button:
-                id:             OpenButton
-                text:           "OPEN"
-                on_press:       app.sendOpenR()
+                id:             CloseButton
+                text:           "CLOSE"
+                on_press:       app.sendCloseR()
                 canvas.before:
                     Color:
                         rgba:   0,0,0,1
@@ -121,6 +122,19 @@ BoxLayout:
             canvas.before:
                 Color:
                     rgba:   0,0,0,1
+                Rectangle:
+                    pos:    self.pos
+                    size:   self.size
+        
+        Button:
+            id:             DisconnectButton
+            text:           "DISCONNECT"
+            font_size:      24
+            size_hint:      (1, 0.10)
+            on_press:       app.disconnect()
+            canvas.before:
+                Color:
+                    rgba:   1,0,0,1
                 Rectangle:
                     pos:    self.pos
                     size:   self.size
