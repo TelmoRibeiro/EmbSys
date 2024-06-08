@@ -1,7 +1,7 @@
 # Mouse Trap
 
 ## Known Bugs (actively mitigating)
-- there is stuck states
+- NONE
 
 ## Known Issues (not actively mitigating)
 - the sensor is not 100% reliable

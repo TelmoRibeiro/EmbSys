@@ -17,8 +17,8 @@ BoxLayout:
                 size:   self.size
 
     Label:
-        id:             infobar
-        text:           "TEST VERSION"
+        id:             Infobar
+        text:           "THIS IS THE INFOBAR"
         pos_hint:       {'center_x': 0.5, 'center_y': 0.5}
         size_hint:      (1, 0.05)
         color:          1,1,1,1
@@ -30,15 +30,15 @@ BoxLayout:
                 size:   self.size
 
     TextInput:
-        id:                 text_input
+        id:                 TextInput
         font_size:          24
         size_hint:          (1, 0.10)
         multiline:          False
         on_text_validate:   app.connect(self.text)
 
     Label:
-        id:             trap_status
-        text:           "Not connected"
+        id:             Connection
+        text:           "CONNECTION: OFFLINE"
         color:          1,0,0,1
         size_hint:      (1, 0.05)
         canvas.before:
@@ -50,7 +50,7 @@ BoxLayout:
 
     Label:
         id:             IPV4
-        text:           "Connected trough: None"
+        text:           "IPV4: None"
         size_hint:      (1, 0.05)
         canvas.before:
             Color:
@@ -61,7 +61,7 @@ BoxLayout:
 
     Label:
         id:             Status
-        text:           "No trap currently connected!"
+        text:           "STATUS: UNKOWN"
         size_hint:      (1, 0.05)
         canvas.before:
             Color:

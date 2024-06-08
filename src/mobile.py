@@ -1,7 +1,7 @@
 import utilities.network   as network
 import utilities.directory as directory
+from utilities.frontend    import KV
 from utilities.message     import encode_packet,decode_packet
-from utilities.layout      import KV
 from utilities.log         import log
 
 from kivy.properties import StringProperty
@@ -37,8 +37,7 @@ class GUIApp(MDApp):
         SERVICE_IPV4 = text
         mobile_thread = Thread(target=client,args=(network.MOBILE_CLIENT,))
         mobile_thread.start()
-        self.root.ids.IPV4.text    = f"IPV4: {text}"
-        self.root.ids.Status.text  = f"STATUS: OPEN"
+        self.root.ids.IPV4.text = f"IPV4: {text}"
         self.start_clock()
     
     def start_clock(self):
@@ -46,8 +45,13 @@ class GUIApp(MDApp):
 
     def updateGUI(self,*args):
         if not SERVICE_ONLINE.is_set():
+            self.root.ids.Connection.text  = f"CONNECTION: OFFLINE"
+            self.root.ids.Connection.color = 1,0,0,1 # RGBA = Red
             # abort
             ...
+        else:
+            self.root.ids.Connection.text  = f"CONNECTION: ONLINE"
+            self.root.ids.Connection.color = 0,1,0,1 # RGBA = Green
         if OPEN_EVENT.is_set():
             self.root.ids.Status.text = f"STATUS: OPEN"
             OPEN_EVENT.clear()
@@ -58,6 +62,7 @@ class GUIApp(MDApp):
             self.root.ids.Status.text = f"STATUS: DETECTED"
             SENSOR_EVENT.clear()
         if PHOTO_EVENT.is_set():
+            self.root.ids.Photo.source = "./pics/wait.png"
             self.root.ids.Photo.source = "./pics/recv.png"
             PHOTO_EVENT.clear()
         # do nothing needed?
