@@ -1,6 +1,6 @@
 #include <Servo.h>
 
-#define Rate           9600 // should be == multim.py
+#define Rate           9600
 #define DoorDelay      500
 #define SensorDistance 15
 
@@ -13,11 +13,9 @@ Servo servo;
 String doorStatus = "OPEN";  // current door status
 String toSendFlag = "NULL";  // RASPI input
 
-bool freshValue = false;  // needed as this!
+bool freshValue = false;
 
-unsigned long lastTS = 0; // last timestamp
-
-unsigned long messageID = 1;  // msg ID
+unsigned long lastTimestamp = 0;
 
 void setup() {
   // SETUP SENSOR
@@ -31,34 +29,31 @@ void setup() {
 
 void loop() {
   float currentDistance = getCurrentDistance();
-  unsigned long messageTS = millis(); // @ telmo - not quite timestamp
+  unsigned long msg_timestamp = millis(); // @ telmo - not quite timestamp
 
   delay(100);
 
   if (toSendFlag != "NULL") {
-    String message = String(messageID) + "@" + String(messageTS) + "@" + toSendFlag + "@" + "None" + "@";
+    String message = toSendFlag + "@" + "None" + "@" + String(msg_timestamp) + "@";
     Serial.println(message);
-    messageID++;
     toSendFlag = "NULL";
   }
   else if (currentDistance <= SensorDistance && freshValue && doorStatus == "OPEN") {
-    String message = String(messageID) + "@" + String(messageTS) + "@" + "SENSOR_E" + "@" + "None" + "@";
+    String message = String("SENSOR_E") + "@" + "None" + "@" + String(msg_timestamp) + "@"; // @ telmo - do not ask about it, C++ is dumb...
     Serial.println(message);
-    messageID++;
     freshValue = false;
-    lastTS = messageTS;
+    lastTimestamp = msg_timestamp;
   }
-  else if (currentDistance > SensorDistance && messageTS >= lastTS + 10000) {
+  else if (currentDistance > SensorDistance && msg_timestamp >= lastTimestamp + 10000) {
     freshValue = true;
   }
   if (Serial.available()) {
     // @ telmo - CRISTINA code block begins //
     String message = Serial.readStringUntil('\n');
-    int pos2 = message.indexOf('@');
-    int pos3 = message.indexOf('@', pos2 + 1);
-    int pos4 = message.indexOf('@', pos3 + 1);
-    int pos5 = message.indexOf('@', pos4 + 1);
-    String flag = message.substring(pos3 + 1, pos4);
+    int posA = message.indexOf('@');
+    int posB = message.indexOf('@',posA + 1);
+    int posC = message.indexOf('@',posB + 1);
+    String flag = message.substring(0,posA);
     // @ telmo - CRISTINA code block ends //
     if (flag == "OPEN_R" && doorStatus == "CLOSE") {
       toSendFlag = "OPEN_E";
@@ -85,7 +80,6 @@ void actuateServo(String flag) {
     servo.detach();
     doorStatus = "OPEN";
   }
-  else Serial.write("OOPS!");
 }
 
 float getCurrentDistance() {

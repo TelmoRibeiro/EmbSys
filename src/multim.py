@@ -3,20 +3,21 @@ import utilities.directory as directory
 from utilities.message     import encode_packet,decode_packet
 from utilities.log         import log
 
-import threading
-import socket
-import struct
-import serial  # enables communication with arduino 
+from threading import Thread,Event
+from struct    import pack,unpack
+
+import socket # enables communication with peers
+import serial # enables communication with arduino
 
 # NETWORK:
-SERVICE_IPV4  = network.SERVER_IPV4
+SERVICE_IPV4 = network.SERVER_IPV4
 
 # STATUS:
 DOOR_STATUS = "OPEN_R"
 
 # EVENTS #
-SERVICE_ONLINE = threading.Event() # service status
-ARDUINO_EVENT  = threading.Event() # communication client -> arduino_client
+SERVICE_ONLINE = Event() # service status
+ARDUINO_EVENT  = Event() # communication client -> arduino_client
 
 def client(service):
     # main functionality
@@ -28,11 +29,10 @@ def client(service):
             global SERVICE_SOCKET
             SERVICE_SOCKET = client_socket
             log(service,f"connection established with {SERVICE_IPV4}")
-            play(service) # check bool
+            play(service) # @ telmo - maybe check this
             SERVICE_ONLINE.set()
             while True:
                 if not SERVICE_ONLINE.is_set():
-                    log(service,f"detected DOWNTIME - service OFFLINE")
                     SERVICE_SOCKET.close()
                     return
                 header = recv_all(service,4)
@@ -41,7 +41,7 @@ def client(service):
                     SERVICE_ONLINE.clear()
                     SERVICE_SOCKET.close()
                     return
-                length = struct.unpack("!I",header)[0]
+                length = unpack("!I",header)[0]
                 data_recv = recv_all(service,length)
                 # log(service,f"received (RAW) {data_recv}")
                 if not data_recv:
@@ -49,9 +49,9 @@ def client(service):
                     SERVICE_ONLINE.clear()
                     SERVICE_SOCKET.close()
                     return
-                msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(data_recv)
+                msg_flag,msg_content,_ = decode_packet(data_recv)
                 log(service,f"received {msg_flag}")
-                recv(service,msg_ID,msg_timestamp,msg_flag,msg_content)
+                recv(service,msg_flag,msg_content)
         except ConnectionRefusedError:
             log(service,f"connection with {SERVICE_IPV4} refused")
             SERVICE_ONLINE.clear()
@@ -59,7 +59,7 @@ def client(service):
         log(service,"shutting down...")
         SERVICE_ONLINE.clear()
 
-def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
+def recv(service,msg_flag,msg_content):
     # patttern matches the received fields into functions
     try:
         global ARDUINO_GLOBAL
@@ -68,16 +68,16 @@ def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
                 SERVICE_ONLINE.clear()
                 SERVICE_SOCKET.close()
             case "OPEN_R":
-                _,ARDUINO_GLOBAL = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
+                _,ARDUINO_GLOBAL = encode_packet(msg_flag,msg_content)
                 ARDUINO_EVENT.set()
             case "CLOSE_R":
-                _,ARDUINO_GLOBAL = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
+                _,ARDUINO_GLOBAL = encode_packet(msg_flag,msg_content)
                 ARDUINO_EVENT.set()
             case "PHOTO_R":
                 photo_path = directory.PHOTO_DIR + "send.png"
                 with open(photo_path,"rb") as photo_file:
                     photo_data = photo_file.read()
-                send(service,msg_ID,"PHOTO_E",photo_data.hex())
+                send(service,"PHOTO_E",photo_data.hex())
             case _:
                 raise Exception(f"flag={msg_flag} not supported")
     except Exception as e:
@@ -99,24 +99,24 @@ def arduino_client(service):
             if serial_socket.in_waiting:
                 data_recv = serial_socket.readline()
                 # log(service,f"received (RAW) {data_recv}")
-                msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(data_recv)
+                msg_flag,msg_content,_ = decode_packet(data_recv)
                 log(service,f"received {msg_flag} from SERIAL")
-                message_control_thread = threading.Thread(target=message_control,args=(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_content,))
+                message_control_thread = Thread(target=message_control,args=(service,serial_socket,msg_flag,msg_content,))
                 message_control_thread.start()
             if ARDUINO_EVENT.is_set():
                 data_recv = ARDUINO_GLOBAL
                 # log(service,f"received (RAW) {data_recv}")
-                msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(data_recv)
+                msg_flag,msg_content,_ = decode_packet(data_recv)
                 ARDUINO_EVENT.clear()
                 log(service,f"received {msg_flag} from WIFI")
-                message_control_thread = threading.Thread(target=message_control,args=(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_content,))
+                message_control_thread = Thread(target=message_control,args=(service,serial_socket,msg_flag,msg_content,))
                 message_control_thread.start()
     except Exception as e:
         log(service,f"detected DOWNTIME | {e}")
         SERVICE_ONLINE.clear()
         SERVICE_SOCKET.close()
 
-def message_control(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_content):
+def message_control(service,serial_socket,msg_flag,msg_content):
     # controls the expected behaviour according to the received message
     try:
         match msg_flag:
@@ -124,9 +124,9 @@ def message_control(service,serial_socket,msg_ID,msg_timestamp,msg_flag,msg_cont
                 if EVENT != "SENSOR_E":
                     global DOOR_STATUS
                     DOOR_STATUS = EVENT
-                send(service,msg_ID,msg_flag,msg_content)
+                send(service,msg_flag,msg_content)
             case REQUEST if REQUEST in ["OPEN_R","CLOSE_R"]:
-                _,data_encd = encode_packet(msg_ID,msg_flag,msg_content,msg_timestamp)
+                _,data_encd = encode_packet(msg_flag,msg_content)
                 serial_socket.write(data_encd)
             case _:
                 serial_socket.close()
@@ -145,16 +145,16 @@ def play(service):
             header = recv_all(service,4)
             if not header:
                 raise Exception("received nothing [header]")
-            length = struct.unpack("!I",header)[0]
+            length = unpack("!I",header)[0]
             data_recv = recv_all(service,length)
             if not data_recv:
                 raise Exception("received nothing [body]")
-            _,_,msg_flag,msg_content = decode_packet(data_recv)
+            msg_flag,msg_content,_ = decode_packet(data_recv)
             match msg_flag:
                 case SYNC if SYNC in ["SYNC"]:
                     log(service,f"received {msg_flag} - {msg_content}")
                     DOOR_STATUS = msg_content
-                    send(service,0,"SYNC_ACK")
+                    send(service,"SYNC_ACK")
                     return True
                 case NSYNC if NSYNC in ["NSYNC"]:
                     log(service,"received NSYNC")
@@ -167,13 +167,13 @@ def play(service):
         SERVICE_SOCKET.close()
         return False
 
-def send(service,msg_ID,msg_flag,msg_content=None):
+def send(service,msg_flag,msg_content=None):
     # sends a message through the provided socket
     # it encodes said message before sending
     try:
-        _,data_encd = encode_packet(msg_ID,msg_flag,msg_content)
+        _,data_encd = encode_packet(msg_flag,msg_content)
         log(service,f"sending {msg_flag}...")
-        length = struct.pack("!I",len(data_encd))
+        length = pack("!I",len(data_encd))
         SERVICE_SOCKET.sendall(length + data_encd)
         return True
     except Exception as e:
@@ -205,8 +205,8 @@ def main():
         global SERVICE_IPV4
         SERVICE_IPV4 = argv[1]
     while True:
-        multim_thread = threading.Thread(target=client,args=(network.MULTIM_CLIENT,))
-        mouset_thread = threading.Thread(target=arduino_client,args=("ARDUINO-CLNT",))
+        multim_thread = Thread(target=client,args=(network.MULTIM_CLIENT,))
+        mouset_thread = Thread(target=arduino_client,args=("ARDUINO-CLNT",))
         SERVICE_ONLINE.clear()
         ARDUINO_EVENT.clear()
         multim_thread.start()

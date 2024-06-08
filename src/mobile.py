@@ -1,5 +1,4 @@
 import utilities.network   as network
-import utilities.directory as directory
 from utilities.frontend    import KV
 from utilities.message     import encode_packet,decode_packet
 from utilities.log         import log
@@ -11,10 +10,10 @@ from kivymd.app      import MDApp
 from threading       import Thread,Event
 from struct          import pack,unpack
 
-import socket
+import socket # enables communication with peers
 
 # NETWORK:
-SERVICE_IPV4  = network.SERVER_IPV4
+SERVICE_IPV4 = network.SERVER_IPV4
 
 # STATUS:
 DOOR_STATUS = "OPEN_R"
@@ -31,7 +30,7 @@ class GUIApp(MDApp):
 
     def build(self):
         return Builder.load_string(KV)
-    
+
     def connect(self,text):
         # early logic
         global SERVICE_IPV4
@@ -50,33 +49,33 @@ class GUIApp(MDApp):
         if not SERVICE_ONLINE.is_set():
             self.disconnect()
         else:
-            self.root.ids.Connection.text  = f"CONNECTION: ONLINE"
+            self.root.ids.Connection.text  = "CONNECTION: ONLINE"
             self.root.ids.Connection.color = 0,1,0,1 # RGBA = Green
         if OPEN_EVENT.is_set():
-            self.root.ids.Status.text = f"STATUS: OPEN"
+            self.root.ids.Status.text = "STATUS: OPEN"
             OPEN_EVENT.clear()
         if CLOSE_EVENT.is_set():
-            self.root.ids.Status.text = f"STATUS: CLOSE"
+            self.root.ids.Status.text = "STATUS: CLOSE"
             CLOSE_EVENT.clear()
         if SENSOR_EVENT.is_set():
-            self.root.ids.Status.text = f"STATUS: DETECTED"
+            self.root.ids.Status.text = "STATUS: DETECTED"
             SENSOR_EVENT.clear()
         if PHOTO_EVENT.is_set():
             self.root.ids.Photo.reload()
             PHOTO_EVENT.clear()
 
     def sendOpenR(self):
-        # sends open request
-        send("MOBILE-CLNT",100,"OPEN_R")
-    
+        # sends an open request
+        send("MOBILE-CLNT","OPEN_R")
+
     def sendCloseR(self):
-        # sends close request
-        send("MOBILE-CLNT",100,"CLOSE_R")
-    
+        # sends a close request
+        send("MOBILE-CLNT","CLOSE_R")
+
     def sendPhotoR(self):
-        # sends photo request
-        send("MOBILE-CLNT",100,"PHOTO_R")
-    
+        # sends a photo request
+        send("MOBILE-CLNT","PHOTO_R")
+
     def disconnect(self):
         # disconnects app
         self.root.ids.IPV4.text        = f"IPV4: None"
@@ -96,11 +95,10 @@ def client(service):
             global SERVICE_SOCKET
             SERVICE_SOCKET = client_socket
             log(service,f"connection established with {SERVICE_IPV4}")
-            play(service) # check bool
+            play(service) # @ telmo - maybe check this
             SERVICE_ONLINE.set()
             while True:
                 if not SERVICE_ONLINE.is_set():
-                    log(service,f"detected DOWNTIME - service OFFLINE")
                     SERVICE_SOCKET.close()
                     return
                 header = recv_all(service,4)
@@ -117,9 +115,9 @@ def client(service):
                     SERVICE_ONLINE.clear()
                     SERVICE_SOCKET.close()
                     return
-                msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(data_recv)
+                msg_flag,msg_content,_ = decode_packet(data_recv)
                 log(service,f"received {msg_flag}")
-                recv(service,msg_ID,msg_timestamp,msg_flag,msg_content)
+                recv(service,msg_flag,msg_content)
         except ConnectionRefusedError:
             log(service,f"connection with {SERVICE_IPV4} refused")
             SERVICE_ONLINE.clear()
@@ -127,10 +125,10 @@ def client(service):
         log(service,"shutting down...")
         SERVICE_ONLINE.clear()
 
-def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
+def recv(service,msg_flag,msg_content):
     # patttern matches the received fields into functions
-    global DOOR_STATUS
     try:
+        global DOOR_STATUS
         match msg_flag:
             case "SHUTDOWN":
                 SERVICE_ONLINE.clear()
@@ -144,7 +142,7 @@ def recv(service,msg_ID,msg_timestamp,msg_flag,msg_content):
             case "SENSOR_E":
                 SENSOR_EVENT.set()
             case "PHOTO_E":
-                photo_path = "./src/pics/recv.png" # NEEDED to run on windows
+                photo_path = "./src/pics/recv.png" # this is NEEDED to run on windows
                 with open(photo_path,"wb") as photo_file:
                     photo_file.write(bytes.fromhex(msg_content))
                 PHOTO_EVENT.set()
@@ -168,12 +166,12 @@ def play(service):
             data_recv = recv_all(service,length)
             if not data_recv:
                 raise Exception("received nothing [body]")
-            _,_,msg_flag,msg_content = decode_packet(data_recv)
+            msg_flag,msg_content,_ = decode_packet(data_recv)
             match msg_flag:
                 case SYNC if SYNC in ["SYNC"]:
                     log(service,f"received {msg_flag} - {msg_content}")
                     DOOR_STATUS = msg_content
-                    send(service,0,"SYNC_ACK")
+                    send(service,"SYNC_ACK")
                     return True
                 case NSYNC if NSYNC in ["NSYNC"]:
                     log(service,"received NSYNC")
@@ -185,12 +183,12 @@ def play(service):
         SERVICE_ONLINE.clear()
         SERVICE_SOCKET.close()
         return False
-    
-def send(service,msg_ID,msg_flag,msg_content=None):
+
+def send(service,msg_flag,msg_content=None):
     # sends a message through the provided socket
     # it encodes said message before sending
     try:
-        _,data_encd = encode_packet(msg_ID,msg_flag,msg_content)
+        _,data_encd = encode_packet(msg_flag,msg_content)
         log(service,f"sending {msg_flag}...")
         length = pack("!I",len(data_encd))
         SERVICE_SOCKET.sendall(length + data_encd)

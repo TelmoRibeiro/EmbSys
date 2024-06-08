@@ -11,7 +11,7 @@ def photos_control(service):
     try:
         photo_path = directory.PHOTO_DIR + "send.png"
         cam = Picamera2()
-        cam.configure(cam.create_still_configuration(main={"format": "XRGB8888","size":(720,480)}))
+        cam.configure(cam.create_still_configuration(main={"format":"XRGB8888","size":(720,480)}))
         cam.start()
         while True:
             cam.capture_file(photo_path)

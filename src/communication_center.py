@@ -2,10 +2,11 @@ import utilities.network as network
 from utilities.message   import encode_packet,decode_packet
 from utilities.log       import log
 
-import threading
-import socket
-import struct
-from time import sleep
+from threading import Thread,Event
+from struct    import pack,unpack
+from time      import sleep
+
+import socket # enables communication with peers
 
 # NETWORK:
 SERVICE_IPV4 = network.SERVER_IPV4
@@ -14,9 +15,9 @@ SERVICE_IPV4 = network.SERVER_IPV4
 DOOR_STATUS = "OPEN_R"
 
 # EVENTS:
-MULTIM_ONLINE = threading.Event() # multim center status
-MOBILE_ONLINE = threading.Event() # mobile center status
-SENSOR_EVENT  = threading.Event() # sensor smart processing
+MULTIM_ONLINE = Event() # multim center status
+MOBILE_ONLINE = Event() # mobile center status
+SENSOR_EVENT  = Event() # sensor smart processing
 
 def server(service):
     # main functionality
@@ -37,21 +38,21 @@ def server(service):
             try:
                 while True:
                     if not MOBILE_ONLINE.is_set() or not MULTIM_ONLINE.is_set():
-                        send(service,client_socket,0,"SHUTDOWN")
+                        send(service,client_socket,"SHUTDOWN")
                         toggleOffline(service)
                         toggleClose(service)
                         break
                     header = recv_all(service,client_socket,4)
                     if not header:
                         raise Exception("received nothing [header]")
-                    length = struct.unpack("!I",header)[0]
+                    length = unpack("!I",header)[0]
                     data_recv = recv_all(service,client_socket,length)
                     # log(service,f"received (RAW) {data_recv}")
                     if not data_recv:
                         raise Exception("received nothing [body]")
-                    msg_ID,msg_timestamp,msg_flag,msg_content = decode_packet(data_recv)
+                    msg_flag,msg_content,_ = decode_packet(data_recv)
                     log(service,f"received {msg_flag}")
-                    message_control_thread = threading.Thread(target=message_control,args=(service,msg_ID,msg_timestamp,msg_flag,msg_content,))
+                    message_control_thread = Thread(target=message_control,args=(service,msg_flag,msg_content,))
                     message_control_thread.start()
             except Exception as e:
                 log(service,f"detected DOWNTIME | caught {e}")
@@ -62,27 +63,27 @@ def server(service):
     finally:
         server_socket.close()
 
-def message_control(service,msg_ID,msg_timestamp,msg_flag,msg_content):
+def message_control(service,msg_flag,msg_content):
     # controls the expected behaviour according to the received message
     try:
         match msg_flag:
             case FLAG if FLAG in ["OPEN_R","CLOSE_R"]:
                 SENSOR_EVENT.clear()
-                send(service,MULTIM_SOCKET,msg_ID,msg_flag,msg_content)
+                send(service,MULTIM_SOCKET,msg_flag,msg_content)
             case FLAG if FLAG in ["PHOTO_R"]:
-                send(service,MULTIM_SOCKET,msg_ID,msg_flag,msg_content)
+                send(service,MULTIM_SOCKET,msg_flag,msg_content)
             case FLAG if FLAG in ["OPEN_E","CLOSE_E","PHOTO_E"]:
                 if FLAG != "PHOTO_E":
                     global DOOR_STATUS
                     DOOR_STATUS = FLAG
-                send(service,MOBILE_SOCKET,msg_ID,msg_flag,msg_content)
+                send(service,MOBILE_SOCKET,msg_flag,msg_content)
             case FLAG if FLAG in ["SENSOR_E"]: # @ telmo - SENSOR_E after SENSOR_E?
-                send(service,MOBILE_SOCKET,msg_ID,msg_flag,msg_content)
-                send(service,MULTIM_SOCKET,msg_ID,"PHOTO_R")
+                send(service,MOBILE_SOCKET,msg_flag,msg_content)
+                send(service,MULTIM_SOCKET,"PHOTO_R")
                 SENSOR_EVENT.set()
                 sleep(5)
                 if SENSOR_EVENT.is_set():
-                    send(service,MULTIM_SOCKET,msg_ID,"CLOSE_R") 
+                    send(service,MULTIM_SOCKET,"CLOSE_R")
                 SENSOR_EVENT.clear()
             case _:
                 raise Exception(service,f"flag={msg_flag} not supported")
@@ -101,14 +102,14 @@ def stop(service,client_socket):
                 MOBILE_ONLINE.set()
                 while not MULTIM_ONLINE.is_set():
                     sleep(1)
-                    send(service,MOBILE_SOCKET,0,"NSYNC")
+                    send(service,MOBILE_SOCKET,"NSYNC")
             case MULTIM_SERVER if MULTIM_SERVER == network.MULTIM_SERVER:
                 global MULTIM_SOCKET
                 MULTIM_SOCKET = client_socket
                 MULTIM_ONLINE.set()
                 while not MOBILE_ONLINE.is_set():
                     sleep(1)
-                    send(service,MULTIM_SOCKET,0,"NSYNC")
+                    send(service,MULTIM_SOCKET,"NSYNC")
             case _:
                 raise Exception(f"service={service} not supported")
         return True
@@ -122,16 +123,16 @@ def play(service,client_socket):
     # handshake that unjams this endpoint
     # used to sync all endpoints
     try:
-        send(service,client_socket,0,"SYNC",DOOR_STATUS)
+        send(service,client_socket,"SYNC",DOOR_STATUS)
         ########## SYNC
         header = recv_all(service,client_socket,4)
         if not header:
             raise Exception("received nothing [header]")
-        length = struct.unpack("!I",header)[0]
+        length = unpack("!I",header)[0]
         data_recv = recv_all(service,client_socket,length)
         if not data_recv:
             raise Exception("received nothing [body]")
-        _,_,msg_flag,_ = decode_packet(data_recv)
+        msg_flag,_,_ = decode_packet(data_recv)
         log(service,f"received {msg_flag}")
         if msg_flag != "SYNC_ACK":
             raise Exception(f"SYNC_ACK expected yet {msg_flag} received")
@@ -142,13 +143,13 @@ def play(service,client_socket):
         toggleClose(service)
         return False
 
-def send(service,client_socket,msg_ID,msg_flag,msg_content=None):
+def send(service,client_socket,msg_flag,msg_content=None):
     # sends a message through the provided socket
     # it encodes said message before sending
     try:
-        _,data_encd = encode_packet(msg_ID,msg_flag,msg_content)
+        _,data_encd = encode_packet(msg_flag,msg_content)
         log(service,f"sending {msg_flag}...")
-        length = struct.pack("!I",len(data_encd))
+        length = pack("!I",len(data_encd))
         client_socket.sendall(length + data_encd)
         return True
     except Exception as e:
@@ -193,14 +194,14 @@ def toggleClose(service):
             MULTIM_SOCKET.close()
         case _:
             log(service,f"service={service} not supported")
-    
+
 def main():
     from sys import argv
     if len(argv) == 2:
         global SERVICE_IPV4
         SERVICE_IPV4 = argv[1]
-    mobile_thread = threading.Thread(target=server,args=(network.MOBILE_SERVER,))
-    multim_thread = threading.Thread(target=server,args=(network.MULTIM_SERVER,))
+    mobile_thread = Thread(target=server,args=(network.MOBILE_SERVER,))
+    multim_thread = Thread(target=server,args=(network.MULTIM_SERVER,))
     mobile_thread.start()
     multim_thread.start()
     # RUNNING THREADS #
