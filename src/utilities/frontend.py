@@ -16,19 +16,6 @@ BoxLayout:
                 pos:    self.pos
                 size:   self.size
 
-    Label:
-        id:             Infobar
-        text:           "THIS IS THE INFOBAR"
-        pos_hint:       {'center_x': 0.5, 'center_y': 0.5}
-        size_hint:      (1, 0.05)
-        color:          1,1,1,1
-        canvas.before:
-            Color:
-                rgba:   0,0,0,1
-            Rectangle:
-                pos:    self.pos
-                size:   self.size
-
     TextInput:
         id:                 TextInput
         font_size:          24

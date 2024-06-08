@@ -14,8 +14,6 @@
     - VERIFIED | SOLUTION = https://stackoverflow.com/questions/21596384/cannot-disable-systemd-serial-getty-service
 
 ## Minor To Do
-- sort GUI fields with minorca (infobar)
-- show when "detected DOWNTIME"
 - test and test and test again...
 
 ## Major To Do
