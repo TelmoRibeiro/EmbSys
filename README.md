@@ -12,8 +12,12 @@
     - VERIFIED
 - Readiness Receive Error
     - VERIFIED | SOLUTION = https://stackoverflow.com/questions/21596384/cannot-disable-systemd-serial-getty-service
+- Saving Photos in Odd Places
+    - VERIFIED | SOLUTION = Test w/ Mino
 
 ## Minor To Do
+- test without arduino
+- test without handshake
 - test and test and test again...
 
 ## Major To Do
