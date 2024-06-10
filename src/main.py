@@ -1,4 +1,5 @@
 import utilities.network   as network
+from utilities.directory   import PHOTO_DIR
 from utilities.frontend    import KV
 from utilities.message     import encode_packet,decode_packet
 from utilities.log         import log
@@ -49,6 +50,7 @@ class GUIApp(MDApp):
         if not SERVICE_ONLINE.is_set():
             self.disconnect()
         else:
+            self.root.ids.Status.text = "STATUS: " + DOOR_STATUS[0:len(DOOR_STATUS)-2] 
             self.root.ids.Connection.text  = "CONNECTION: ONLINE"
             self.root.ids.Connection.color = 0,1,0,1 # RGBA = Green
         if OPEN_EVENT.is_set():
@@ -142,7 +144,7 @@ def recv(service,msg_flag,msg_content):
             case "SENSOR_E":
                 SENSOR_EVENT.set()
             case "PHOTO_E":
-                photo_path = "./src/pics/recv.png" # this is NEEDED to run on windows
+                photo_path = PHOTO_DIR + "recv.png"
                 with open(photo_path,"wb") as photo_file:
                     photo_file.write(bytes.fromhex(msg_content))
                 PHOTO_EVENT.set()
