@@ -14,9 +14,9 @@
 - Input/Output Error
     - VERIFIED
 - Readiness Receive Error
-    - VERIFIED | SOLUTION = https://stackoverflow.com/questions/21596384/cannot-disable-systemd-serial-getty-service
+    - VERIFIED | FIXED by https://stackoverflow.com/questions/21596384/cannot-disable-systemd-serial-getty-service
 - Saving Photos in Odd Places
-    - VERIFIED
+    - VERIFIED | FIXED
 
 ## Minor To Do
 - test without arduino
