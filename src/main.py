@@ -1,6 +1,6 @@
 import utilities.network   as network
-from utilities.directory   import PHOTO_DIR
-from utilities.frontend    import KV
+import utilities.directory as directory
+import utilities.frontend  as frontend
 from utilities.message     import encode_packet,decode_packet
 from utilities.log         import log
 
@@ -30,7 +30,7 @@ class GUIApp(MDApp):
     update_string = StringProperty("")
 
     def build(self):
-        return Builder.load_string(KV)
+        return Builder.load_string(frontend.KV)
 
     def connect(self,text):
         # early logic
@@ -144,7 +144,7 @@ def recv(service,msg_flag,msg_content):
             case "SENSOR_E":
                 SENSOR_EVENT.set()
             case "PHOTO_E":
-                photo_path = PHOTO_DIR + "recv.png"
+                photo_path = directory.PHOTO_DIR + "recv.png"
                 with open(photo_path,"wb") as photo_file:
                     photo_file.write(bytes.fromhex(msg_content))
                 PHOTO_EVENT.set()
