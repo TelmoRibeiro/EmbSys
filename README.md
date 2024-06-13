@@ -1,7 +1,7 @@
 # Mouse Trap
 
 - src names follow the conventions established in the companion report
-- main (previously mobile) had the named change to comply with Buildozer
+- main (previously mobile) had the name changed to comply with Buildozer
 
 ## Known Bugs (actively mitigating)
 - NONE
